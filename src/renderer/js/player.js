@@ -765,7 +765,7 @@ class Player {
 
   async loadVtt(renderer, stream, my) {
     try {
-      const res = await fetch(api.subtitleUrl(this.item.Id, this.ms.Id, stream.Index));
+      const res = await fetch(api.subtitleUrl(this.item.Id, this.ms.Id, stream.Index), { headers: { Authorization: api.authHeader() } });
       if (!res.ok) throw new Error(String(res.status));
       const text = await res.text();
       if (my !== this.subToken) return;

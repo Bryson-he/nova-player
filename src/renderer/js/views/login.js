@@ -31,7 +31,7 @@ export function loginView({ onDone, message }) {
       try {
         const { base, info } = await api.findServer(input.value);
         server = { url: base, name: info.ServerName, id: info.Id, version: info.Version };
-        api.configure({ base, token: '', userId: '' });
+        api.configure({ base, token: '', userId: '', serverVersion: info.Version });
         await stepUser();
       } catch (e) {
         errEl.textContent = e.message;

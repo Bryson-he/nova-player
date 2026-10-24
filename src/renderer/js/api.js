@@ -23,11 +23,22 @@ class Api {
   userId = '';
   onUnauthorized = null;
   version = CLIENT_VERSION;
+  serverVersion = '';
 
-  configure({ base, token, userId }) {
+  // Query-string auth for URLs the browser loads itself (subtitles, fonts,
+  // trickplay, streams). Jellyfin 10.10 added `ApiKey`; 10.11+ rejects the
+  // legacy `api_key` with 401, so pick by server version.
+  get keyParam() {
+    const [major, minor] = String(this.serverVersion).split('.').map(Number);
+    if (!major) return 'ApiKey';
+    return major > 10 || (major === 10 && minor >= 10) ? 'ApiKey' : 'api_key';
+  }
+
+  configure({ base, token, userId, serverVersion }) {
     if (base !== undefined) this.base = base.replace(/\/+$/, '');
     if (token !== undefined) this.token = token;
     if (userId !== undefined) this.userId = userId;
+    if (serverVersion !== undefined) this.serverVersion = serverVersion || '';
   }
 
   authHeader() {
@@ -60,7 +71,7 @@ class Api {
 
   withKey(url) {
     if (/[?&](api_key|apikey)=/i.test(url)) return url;
-    return url + (url.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(this.token);
+    return url + (url.includes('?') ? '&' : '?') + this.keyParam + '=' + encodeURIComponent(this.token);
   }
 
   async request(path, { method = 'GET', query, body, timeout = 20000, signal, base } = {}) {
@@ -335,21 +346,21 @@ class Api {
       deviceId: store.get('deviceId'),
       PlaySessionId: playSessionId,
       Tag: ms.ETag,
-      api_key: this.token,
+      [this.keyParam]: this.token,
     });
   }
 
   // format: 'vtt' (converted by the server) or 'ass' (original styled file).
   subtitleUrl(itemId, mediaSourceId, index, format = 'vtt') {
-    return this.url(`/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/0/Stream.${format}`, { api_key: this.token });
+    return this.url(`/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/0/Stream.${format}`, { [this.keyParam]: this.token });
   }
 
   attachmentUrl(itemId, mediaSourceId, index) {
-    return this.url(`/Videos/${itemId}/${mediaSourceId}/Attachments/${index}`, { api_key: this.token });
+    return this.url(`/Videos/${itemId}/${mediaSourceId}/Attachments/${index}`, { [this.keyParam]: this.token });
   }
 
   trickplayUrl(itemId, width, tileIndex, mediaSourceId) {
-    return this.url(`/Videos/${itemId}/Trickplay/${width}/${tileIndex}.jpg`, { mediaSourceId, api_key: this.token });
+    return this.url(`/Videos/${itemId}/Trickplay/${width}/${tileIndex}.jpg`, { mediaSourceId, [this.keyParam]: this.token });
   }
 }
 

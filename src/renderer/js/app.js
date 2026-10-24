@@ -27,12 +27,21 @@ async function boot() {
   const user = store.get('user');
   const token = store.token;
   if (server?.url && user?.Id && token) {
-    api.configure({ base: server.url, token, userId: user.Id });
+    api.configure({ base: server.url, token, userId: user.Id, serverVersion: server.version });
     showShell();
     // Validate the saved session in the background; never block startup on it.
     api.me().catch((err) => {
       if (err.status === 401) signOut('Your session expired. Please sign in again.');
     });
+    // The server may have been upgraded since sign-in; media URL auth depends on its version.
+    api.request('/System/Info/Public', { timeout: 8000 })
+      .then((info) => {
+        if (info?.Version && info.Version !== server.version) {
+          api.configure({ serverVersion: info.Version });
+          store.set('server', { ...store.get('server'), version: info.Version });
+        }
+      })
+      .catch(() => {});
   } else {
     showLogin();
   }
@@ -48,7 +57,7 @@ function onLoggedIn({ server, auth }) {
   store.set('server', server);
   store.set('user', { Id: auth.User.Id, Name: auth.User.Name, PrimaryImageTag: auth.User.PrimaryImageTag });
   store.setToken(auth.AccessToken);
-  api.configure({ base: server.url, token: auth.AccessToken, userId: auth.User.Id });
+  api.configure({ base: server.url, token: auth.AccessToken, userId: auth.User.Id, serverVersion: server.version });
   showShell();
 }
 

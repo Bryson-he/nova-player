@@ -447,7 +447,12 @@ input[type=color] { width: 44px; height: 32px; border: 0; background: none; curs
 .sub-layer.top { top: 5%; bottom: auto !important; }
 .sub-layer.top .sub-cue { font-size: calc(min(3.6vh, 2.1vw) * var(--sub-scale)); }
 .player.show-controls .sub-layer.top { top: max(5%, 96px); }
-canvas.JASSUB { z-index: 1; }
+canvas.JASSUB { z-index: 1; transition: transform .25s ease; }
+/* Lift styled subtitles above the controls while they are showing (plain ones do the same via .sub-layer). */
+.player.show-controls canvas.JASSUB { transform: translateY(-96px); }
+.player.mini.show-controls canvas.JASSUB { transform: translateY(-52px); }
+.player.mini.show-controls .sub-layer.top { top: max(5%, 60px); }
+.player.mini.show-controls .sub-layer:not(.top) { bottom: max(var(--sub-bottom, 8%), 70px); }
 
 .seek-chapters { position: absolute; inset: 0; pointer-events: none; }
 .chap { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: rgba(10, 12, 18, 0.85); }
