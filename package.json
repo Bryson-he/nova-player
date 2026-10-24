@@ -1,0 +1,61 @@
+{
+  "name": "nova-player",
+  "productName": "Nova Player",
+  "version": "1.1.0",
+  "description": "A fast, modern Jellyfin client for Windows",
+  "author": "Bryson",
+  "license": "MIT",
+  "homepage": "https://github.com/Bryson-he/nova-player",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bryson-he/nova-player.git"
+  },
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node scripts/copy-vendor.js",
+    "dist": "electron-builder --win nsis portable --publish never",
+    "release": "electron-builder --win nsis portable --publish always",
+    "pack": "electron-builder --win dir"
+  },
+  "build": {
+    "appId": "com.nova.jellyfinplayer",
+    "productName": "Nova Player",
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Bryson-he",
+        "repo": "nova-player",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "NovaPlayer-Setup.exe"
+    },
+    "portable": {
+      "artifactName": "NovaPlayer-Portable.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "hls.js": "^1.7.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  }
+}
