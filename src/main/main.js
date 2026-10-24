@@ -249,7 +249,8 @@ function registerIpc() {
   ipcMain.handle('update:state', () => updateState);
   ipcMain.handle('update:check', () => checkForUpdates(true));
   ipcMain.on('update:install', () => {
-    if (updateState.state === 'ready') autoUpdater?.quitAndInstall(false, true);
+    // Silent install (no setup wizard), then relaunch Nova.
+    if (updateState.state === 'ready') autoUpdater?.quitAndInstall(true, true);
   });
 }
 
