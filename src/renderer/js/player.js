@@ -12,7 +12,8 @@ import {
 } from './ui.js';
 import { buildDeviceProfile } from './profile.js';
 import {
-  chooseAudio, chooseSubtitle, audioStreams, subStreams, streamLabel, rememberTrack, isTextSub, containerDefaultAudio,
+  chooseAudio, chooseSubtitle, chooseSecondarySubtitle, audioStreams, subStreams, streamLabel, rememberTrack, isTextSub,
+  isAssSub, containerDefaultAudio,
 } from './tracks.js';
 import { parseVtt, SubtitleRenderer } from './subtitles.js';
 import { refreshCurrent } from './router.js';
@@ -58,6 +59,14 @@ const QUALITIES = [
   [0, 'Auto (from settings)'], [120000000, 'Maximum'], [40000000, '40 Mbps'], [20000000, '20 Mbps'],
   [10000000, '10 Mbps'], [6000000, '6 Mbps'], [3000000, '3 Mbps'], [1500000, '1.5 Mbps'],
 ];
+const BOOSTS = [[1, '100% (normal)'], [1.5, '150%'], [2, '200%'], [3, '300%']];
+const BUFFERS = {
+  normal: { maxBufferLength: 60, maxMaxBufferLength: 300, backBufferLength: 90, maxBufferSize: 60 * 1000 * 1000 },
+  large: { maxBufferLength: 180, maxMaxBufferLength: 600, backBufferLength: 120, maxBufferSize: 300 * 1000 * 1000 },
+  max: { maxBufferLength: 600, maxMaxBufferLength: 1200, backBufferLength: 180, maxBufferSize: 800 * 1000 * 1000 },
+};
+const JASSUB_DIR = new URL('../vendor/jassub/', import.meta.url).href;
+const FONT_RE = /font|\.(ttf|otf|ttc|woff2?)$/i;
 const SKIP_LABELS = { Intro: 'Skip Intro', Recap: 'Skip Recap', Preview: 'Skip Preview', Commercial: 'Skip Ad', Outro: 'Skip Credits' };
 
 const PLAYBACK_ERRORS = {
@@ -86,6 +95,11 @@ class Player {
     this.playSessionId = null;
     this.audioIndex = null;
     this.subIndex = -1;
+    this.sub2Index = -1;
+    this.subDelay = 0;
+    this.ass = null;
+    this.audioGraph = null;
+    this.mini = false;
     this.burning = false;
     this.hls = null;
     this.attached = false;
@@ -117,17 +131,22 @@ class Player {
     this.hasPlayed = false;
     this.pendingSeek = 0;
     this.trickplay = null;
+    this.chapters = [];
+    this.sub2Index = -1;
     clearInterval(this.countdownTimer);
     if (this.upNextEl) this.upNextEl.classList.add('hidden');
     if (this.skipBtn) this.skipBtn.classList.add('hidden');
     if (this.segLayer) this.segLayer.replaceChildren();
-    if (this.subs) this.subs.setDelay(0);
+    if (this.chapLayer) this.chapLayer.replaceChildren();
   }
 
   // ---------------------------------------------------------------- DOM
 
   build() {
     const v = h('video', { class: 'player-video', autoplay: true, playsinline: true, preload: 'auto' });
+    // CORS mode lets the audio go through Web Audio (boost / night mode) and
+    // lets screenshots read the frame. Jellyfin (and the CORS shim) allow it.
+    v.crossOrigin = 'anonymous';
     v.volume = store.get('volume') ?? 1;
     v.muted = !!store.get('muted');
     this.video = v;
@@ -135,6 +154,10 @@ class Player {
     this.subLayer = h('div', { class: 'sub-layer' });
     applySubtitleStyle(this.subLayer);
     this.subs = new SubtitleRenderer(v, this.subLayer);
+    // Secondary subtitle line (dual subtitles), drawn at the top of the picture.
+    this.sub2Layer = h('div', { class: 'sub-layer top' });
+    applySubtitleStyle(this.sub2Layer);
+    this.subs2 = new SubtitleRenderer(v, this.sub2Layer);
 
     this.loadingText = h('div', { class: 'loading-text' }, 'Loading…');
     this.loadingEl = h('div', { class: 'player-loading' },
@@ -152,17 +175,20 @@ class Player {
     this.subtitleEl = h('div', { class: 'p-subtitle' });
     const top = h('div', { class: 'p-top' },
       iconBtn('back', 'Back (Esc)', () => this.destroy(), 'p-btn'),
-      h('div', { class: 'p-titles' }, this.titleEl, this.subtitleEl));
+      h('div', { class: 'p-titles' }, this.titleEl, this.subtitleEl),
+      iconBtn('fullscreen', 'Exit mini player (T)', () => this.setMini(false), 'p-btn mini-only'));
 
     this.segLayer = h('div', { class: 'seek-segs' });
+    this.chapLayer = h('div', { class: 'seek-chapters' });
+    this.tipChapter = h('div', { class: 'seek-chapter hidden' });
     this.bufEl = h('div', { class: 'seek-buf' });
     this.progEl = h('div', { class: 'seek-prog' });
     this.knob = h('div', { class: 'seek-knob' });
     this.tipThumb = h('div', { class: 'seek-thumb hidden' });
     this.tipTime = h('div', { class: 'seek-time' });
-    this.hoverTip = h('div', { class: 'seek-tip hidden' }, this.tipThumb, this.tipTime);
+    this.hoverTip = h('div', { class: 'seek-tip hidden' }, this.tipThumb, this.tipChapter, this.tipTime);
     this.seekEl = h('div', { class: 'seek' },
-      h('div', { class: 'seek-track' }, this.bufEl, this.segLayer, this.progEl),
+      h('div', { class: 'seek-track' }, this.bufEl, this.segLayer, this.progEl, this.chapLayer),
       this.knob,
       this.hoverTip);
 
@@ -177,9 +203,9 @@ class Player {
     this.endsEl = h('div', { class: 'p-ends' });
     this.audioBtn = iconBtn('audio', 'Audio track (A)', (e) => this.audioMenu(e.currentTarget), 'p-btn');
     this.subBtn = iconBtn('subtitles', 'Subtitles (S)', (e) => this.subMenu(e.currentTarget), 'p-btn');
-    const setBtn = iconBtn('settings', 'Speed & quality', (e) => this.settingsMenu(e.currentTarget), 'p-btn');
+    const setBtn = iconBtn('settings', 'Speed, quality, sound & chapters', (e) => this.settingsMenu(e.currentTarget), 'p-btn');
     this.infoBtn = iconBtn('info', 'Playback info (I)', () => this.toggleInfo(), 'p-btn');
-    const pipBtn = iconBtn('pip', 'Picture in picture', () => this.togglePip(), 'p-btn');
+    const pipBtn = iconBtn('pip', 'Mini player, always on top (T)', () => this.setMini(!this.mini), 'p-btn');
     this.fsBtn = iconBtn(fsState ? 'fullscreenExit' : 'fullscreen', 'Fullscreen (F)', () => this.toggleFullscreen(), 'p-btn');
 
     this.bottom = h('div', { class: 'p-bottom' },
@@ -194,7 +220,7 @@ class Player {
 
     this.controls = h('div', { class: 'p-controls' }, top, this.bottom);
     this.el = h('div', { class: `player show-controls${fsState ? ' fs' : ''}` },
-      v, this.subLayer, this.controls, this.skipBtn, this.upNextEl, this.infoEl, this.osdEl, this.loadingEl, this.errorEl);
+      v, this.subLayer, this.sub2Layer, this.controls, this.skipBtn, this.upNextEl, this.infoEl, this.osdEl, this.loadingEl, this.errorEl);
     document.body.append(this.el);
     window.nova.setDarkOverlay(true);
     this.updateEpButtons();
@@ -326,10 +352,18 @@ class Player {
 
   handleKey(e) {
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      this.screenshot();
+      return;
+    }
     if (e.ctrlKey || e.metaKey) return;
     const k = e.key;
     let handled = true;
     switch (k) {
+      case 't': case 'T': this.setMini(!this.mini); break;
+      case 'PageUp': this.jumpChapter(-1); break;
+      case 'PageDown': this.jumpChapter(1); break;
       case ' ': case 'k': case 'K': case 'MediaPlayPause': this.togglePlay(); break;
       case 'ArrowLeft': this.seekBy(-(e.shiftKey ? 60 : store.setting('seekBack'))); break;
       case 'ArrowRight': this.seekBy(e.shiftKey ? 60 : store.setting('seekForward')); break;
@@ -354,6 +388,7 @@ class Player {
         break;
       case 'Escape':
         if (fsState) this.setFullscreen(false);
+        else if (this.mini) this.setMini(false);
         else this.destroy();
         break;
       case 'Backspace': case 'BrowserBack': this.destroy(); break;
@@ -454,6 +489,8 @@ class Player {
       this.method = method;
       this.audioIndex = audioIndex;
       this.subIndex = subIndex ?? -1;
+      // Secondary subtitle is picked once per episode; track/quality reloads keep it.
+      if (announce) this.sub2Index = chooseSecondarySubtitle(item, ms, this.subIndex);
       this.burning = needsBurn && method !== 'DirectPlay';
       this.transcodeReasons = method === 'DirectPlay'
         ? []
@@ -461,6 +498,7 @@ class Player {
 
       this.attach(url, startSec, my);
       this.loadSubtitles();
+      this.applyAudio();
       this.updateTrackButtons();
       if (announce && startSec > 5) this.osd(`Resuming from ${formatTime(startSec)}`);
     } catch (err) {
@@ -509,6 +547,16 @@ class Player {
     }
     this.updateEpButtons();
 
+    // Chapters (only useful when there are at least two).
+    const chapters = (item.Chapters || [])
+      .map((c, i) => ({ start: (c.StartPositionTicks || 0) / TICKS, name: c.Name || `Chapter ${i + 1}` }))
+      .sort((a, b) => a.start - b.start);
+    this.chapters = chapters.length >= 2 ? chapters : [];
+    this.drawChapters();
+
+    // Subtitle sync is remembered per series (or per movie).
+    this.setSubDelay(store.get('subDelays')?.[this.delayKey()] || 0, false);
+
     const tp = item.Trickplay?.[item.MediaSources?.[0]?.Id] || (item.Trickplay && Object.values(item.Trickplay)[0]);
     if (tp) {
       const widths = Object.keys(tp).map(Number).sort((a, b) => a - b);
@@ -531,9 +579,7 @@ class Player {
       const hls = new Hls({
         startPosition: startSec > 0 ? startSec : -1,
         enableWorker: true,
-        maxBufferLength: 60,
-        maxMaxBufferLength: 300,
-        backBufferLength: 90,
+        ...(BUFFERS[store.setting('bufferSize')] || BUFFERS.normal),
         manifestLoadingTimeOut: 30000,
         manifestLoadingMaxRetry: 3,
         levelLoadingTimeOut: 30000,
@@ -598,7 +644,7 @@ class Player {
     } catch {
       // ignore
     }
-    this.subs.clear();
+    this.clearSubs();
   }
 
   reload(overrides = {}) {
@@ -629,6 +675,7 @@ class Player {
       }
     }
     this.drawSegments();
+    this.drawChapters();
     this.updateTimeUi();
   }
 
@@ -691,26 +738,103 @@ class Player {
 
   // ---------------------------------------------------------------- subtitles
 
+  // Primary subtitle: ASS/SSA goes to libass (JASSUB) so fonts, positioning
+  // and karaoke survive; everything else uses our styled VTT renderer.
+  // Secondary subtitle (dual subs) always uses the VTT renderer at the top.
   async loadSubtitles() {
     const my = ++this.subToken;
-    this.subs.clear();
-    const s = this.subIndex >= 0 ? subStreams(this.ms).find((x) => x.Index === this.subIndex) : null;
-    if (!s || !isTextSub(s)) return;
+    this.clearSubs();
+    const find = (i) => (i >= 0 ? subStreams(this.ms).find((x) => x.Index === i) : null);
+    const s = find(this.subIndex);
+    const s2 = this.sub2Index !== this.subIndex ? find(this.sub2Index) : null;
+    this.el.classList.toggle('dual-subs', !!s2);
+
+    if (s && isTextSub(s)) {
+      let styled = false;
+      if (isAssSub(s) && store.setting('styledSubs')) {
+        try {
+          styled = await this.startAss(s, my);
+        } catch (err) {
+          console.warn('Styled subtitles failed, falling back to plain text', err);
+        }
+      }
+      if (!styled && my === this.subToken) await this.loadVtt(this.subs, s, my);
+    }
+    if (s2 && isTextSub(s2) && my === this.subToken) await this.loadVtt(this.subs2, s2, my);
+  }
+
+  async loadVtt(renderer, stream, my) {
     try {
-      const res = await fetch(api.subtitleUrl(this.item.Id, this.ms.Id, s.Index));
+      const res = await fetch(api.subtitleUrl(this.item.Id, this.ms.Id, stream.Index));
       if (!res.ok) throw new Error(String(res.status));
       const text = await res.text();
       if (my !== this.subToken) return;
-      this.subs.setCues(parseVtt(text));
+      renderer.setCues(parseVtt(text));
+      renderer.setDelay(this.subDelay);
     } catch {
       if (my === this.subToken) toast('Could not load subtitles', 'error');
     }
   }
 
+  async startAss(stream, my) {
+    const { default: JASSUB } = await import('../vendor/jassub/jassub.js');
+    if (my !== this.subToken) return true;
+    // Fonts embedded in the MKV (anime releases ship their own typefaces).
+    const fonts = (this.ms.MediaAttachments || [])
+      .filter((a) => FONT_RE.test(a.MimeType || '') || FONT_RE.test(a.FileName || ''))
+      .map((a) => (a.DeliveryUrl ? api.absolute(a.DeliveryUrl) : api.attachmentUrl(this.item.Id, this.ms.Id, a.Index)));
+    const ass = new JASSUB({
+      video: this.video,
+      subUrl: api.subtitleUrl(this.item.Id, this.ms.Id, stream.Index, 'ass'),
+      workerUrl: JASSUB_DIR + 'worker/worker.js',
+      wasmUrl: JASSUB_DIR + 'wasm/jassub-worker.wasm',
+      modernWasmUrl: JASSUB_DIR + 'wasm/jassub-worker-modern.wasm',
+      fonts,
+      timeOffset: -this.subDelay,
+      queryFonts: 'local',
+    });
+    await ass.ready;
+    if (my !== this.subToken) {
+      ass.destroy();
+      return true;
+    }
+    this.ass = ass;
+    return true;
+  }
+
+  clearSubs() {
+    this.subs.clear();
+    this.subs2.clear();
+    if (this.ass) {
+      const ass = this.ass;
+      this.ass = null;
+      ass.destroy().catch(() => {});
+    }
+  }
+
+  delayKey() {
+    return this.item?.SeriesId || this.item?.Id || '';
+  }
+
+  // Positive = subtitles appear later. Remembered per series (or movie).
+  setSubDelay(sec, persist = true) {
+    this.subDelay = Math.round(sec * 10) / 10;
+    this.subs.setDelay(this.subDelay);
+    this.subs2.setDelay(this.subDelay);
+    if (this.ass) this.ass.timeOffset = -this.subDelay;
+    if (persist && this.delayKey()) {
+      const all = { ...(store.get('subDelays') || {}) };
+      if (this.subDelay) all[this.delayKey()] = this.subDelay;
+      else delete all[this.delayKey()];
+      store.set('subDelays', all);
+    }
+    return this.subDelay;
+  }
+
   adjustSubDelay(delta) {
-    this.subs.setDelay(this.subs.delay + delta);
-    this.osd(`Subtitle sync ${this.subs.delay > 0 ? '+' : ''}${this.subs.delay.toFixed(1)}s`);
-    return this.subs.delay;
+    this.setSubDelay(this.subDelay + delta);
+    this.osd(`Subtitle sync ${this.subDelay > 0 ? '+' : ''}${this.subDelay.toFixed(1)}s`);
+    return this.subDelay;
   }
 
   // ---------------------------------------------------------------- track switching
@@ -749,12 +873,13 @@ class Player {
 
   subMenu(anchor) {
     const subs = subStreams(this.ms);
-    const delayVal = h('span', { class: 'delay-val' }, `${this.subs.delay.toFixed(1)}s`);
+    const delayVal = h('span', { class: 'delay-val' }, `${this.subDelay.toFixed(1)}s`);
     const bump = (d) => (e) => {
       e.stopPropagation();
-      const val = d === 0 ? (this.subs.setDelay(0), 0) : this.adjustSubDelay(d);
+      const val = d === 0 ? this.setSubDelay(0) : this.adjustSubDelay(d);
       delayVal.textContent = `${val.toFixed(1)}s`;
     };
+    const textSubs = subs.filter((s) => isTextSub(s));
     const delayRow = h('div', { class: 'menu-row' },
       h('span', { class: 'menu-row-label' }, 'Sync'),
       h('button', { class: 'mini-btn', title: 'Show earlier (Z)', onclick: bump(-0.1) }, '−'),
@@ -765,13 +890,33 @@ class Player {
       { label: 'Off', checked: this.subIndex === -1, onClick: () => this.setSubtitle(-1) },
       ...subs.map((s) => ({
         label: streamLabel(s),
-        sub: isTextSub(s) ? '' : 'Image subtitle · server burns it in',
+        sub: !isTextSub(s) ? 'Image subtitle · server burns it in'
+          : isAssSub(s) && store.setting('styledSubs') ? 'Styled (fonts & positioning kept)' : '',
         checked: s.Index === this.subIndex,
         onClick: () => this.setSubtitle(s.Index),
       })),
       { divider: true },
       { el: delayRow },
+      ...(textSubs.length >= 2 ? [
+        { header: 'Second subtitle (top of screen)' },
+        { label: 'Off', checked: this.sub2Index === -1, onClick: () => this.setSecondarySubtitle(-1) },
+        ...textSubs.map((s) => ({
+          label: streamLabel(s),
+          checked: s.Index === this.sub2Index,
+          disabled: s.Index === this.subIndex,
+          onClick: () => this.setSecondarySubtitle(s.Index),
+        })),
+      ] : []),
     ], { title: 'Subtitles' });
+  }
+
+  setSecondarySubtitle(index) {
+    if (index === this.sub2Index || !this.ms) return;
+    const stream = index >= 0 ? subStreams(this.ms).find((s) => s.Index === index) : null;
+    rememberTrack(this.item, 'subtitle2', stream);
+    this.sub2Index = index;
+    this.osd(`Second subtitle: ${stream ? streamLabel(stream) : 'Off'}`);
+    this.loadSubtitles();
   }
 
   setSubtitle(index) {
@@ -781,6 +926,7 @@ class Player {
     this.osd(`Subtitles: ${stream ? streamLabel(stream) : 'Off'}`);
     const needsBurn = !!stream && !isTextSub(stream);
     this.subIndex = index;
+    if (index >= 0 && index === this.sub2Index) this.sub2Index = -1;
     this.updateTrackButtons();
     if (needsBurn || this.burning) {
       this.reload({ subIndex: index, message: needsBurn ? 'Preparing subtitles…' : 'Loading…' });
@@ -806,7 +952,40 @@ class Player {
 
   settingsMenu(anchor) {
     const rate = this.video.playbackRate;
+    const boost = store.setting('volumeBoost');
+    const cur = this.currentChapterIndex();
     popupMenu(anchor, [
+      { label: 'Take screenshot', sub: 'Ctrl+S · saved to Pictures\\Nova Player', onClick: () => this.screenshot() },
+      { label: this.mini ? 'Exit mini player' : 'Mini player (always on top)', sub: 'T', onClick: () => this.setMini(!this.mini) },
+      { header: 'Sound' },
+      {
+        label: 'Night mode',
+        sub: 'Quieter explosions, clearer dialogue',
+        checked: store.setting('nightMode'),
+        onClick: () => {
+          store.setSetting('nightMode', !store.setting('nightMode'));
+          this.applyAudio();
+          this.osd(`Night mode ${store.setting('nightMode') ? 'on' : 'off'}`);
+        },
+      },
+      ...BOOSTS.map(([b, label]) => ({
+        label: `Volume boost ${label}`,
+        checked: boost === b,
+        onClick: () => {
+          store.setSetting('volumeBoost', b);
+          this.applyAudio();
+          this.osd(`Volume boost ${Math.round(b * 100)}%`);
+        },
+      })),
+      ...(this.chapters.length ? [
+        { header: 'Chapters  (PgUp / PgDn)' },
+        ...this.chapters.map((c, i) => ({
+          label: c.name,
+          sub: formatTime(c.start),
+          checked: i === cur,
+          onClick: () => this.seekTo(c.start),
+        })),
+      ] : []),
       { header: 'Playback speed' },
       ...SPEEDS.map((s) => ({ label: s === 1 ? 'Normal' : `${s}×`, checked: Math.abs(rate - s) < 0.01, onClick: () => this.setSpeed(s) })),
       { header: 'Quality' },
@@ -831,6 +1010,107 @@ class Player {
     const i = SPEEDS.findIndex((s) => Math.abs(s - this.video.playbackRate) < 0.01);
     const next = SPEEDS[Math.min(SPEEDS.length - 1, Math.max(0, (i < 0 ? 2 : i) + dir))];
     this.setSpeed(next);
+  }
+
+  // ---------------------------------------------------------------- sound: boost & night mode
+  //
+  // Audio is routed through Web Audio only once one of these is turned on, so
+  // normal playback stays on the plain, zero-overhead path.
+  applyAudio() {
+    const boost = store.setting('volumeBoost') || 1;
+    const night = !!store.setting('nightMode');
+    if (!this.audioGraph && boost === 1 && !night) return;
+    if (!this.audioGraph) {
+      try {
+        const ctx = new AudioContext();
+        const src = ctx.createMediaElementSource(this.video);
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -32;
+        comp.knee.value = 24;
+        comp.ratio.value = 6;
+        comp.attack.value = 0.004;
+        comp.release.value = 0.25;
+        const makeup = ctx.createGain();
+        makeup.gain.value = 2.2; // lifts quiet dialogue back up after compression
+        const gain = ctx.createGain();
+        this.audioGraph = { ctx, src, comp, makeup, gain };
+      } catch (err) {
+        toast(`Sound effects unavailable: ${err.message}`, 'error');
+        return;
+      }
+    }
+    const { ctx, src, comp, makeup, gain } = this.audioGraph;
+    for (const n of [src, comp, makeup, gain]) n.disconnect();
+    if (night) src.connect(comp).connect(makeup).connect(gain);
+    else src.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.value = boost;
+    ctx.resume().catch(() => {});
+  }
+
+  // ---------------------------------------------------------------- screenshots
+
+  async screenshot() {
+    const v = this.video;
+    if (!v.videoWidth) return this.osd('Nothing to capture yet');
+    try {
+      const c = document.createElement('canvas');
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      const blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('encode failed'))), 'image/png'));
+      const it = this.item;
+      const title = it?.Type === 'Episode' ? `${it.SeriesName} ${epLabel(it).replace(':', '')}` : it?.Name || 'Nova';
+      const file = await window.nova.saveScreenshot(await blob.arrayBuffer(), `${title} ${formatTime(v.currentTime).replace(/:/g, '-')}`);
+      this.osd('Screenshot saved');
+      toast('Screenshot saved to Pictures\\Nova Player', 'info', 4000, { label: 'Show', onClick: () => window.nova.showInFolder(file) });
+    } catch (err) {
+      toast(`Screenshot failed: ${err.message}`, 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------- mini player
+
+  async setMini(on) {
+    if (on === this.mini) return;
+    if (on && fsState) await window.nova.setFullscreen(false);
+    this.mini = await window.nova.setMini(on);
+    this.el.classList.toggle('mini', this.mini);
+    this.osd(this.mini ? 'Mini player · always on top' : 'Mini player off');
+    // Let JASSUB re-measure the new video size.
+    requestAnimationFrame(() => this.ass?.resize?.());
+  }
+
+  // ---------------------------------------------------------------- chapters
+
+  currentChapterIndex(t = this.video.currentTime) {
+    let idx = -1;
+    this.chapters.forEach((c, i) => {
+      if (c.start <= t + 0.5) idx = i;
+    });
+    return idx;
+  }
+
+  jumpChapter(dir) {
+    if (!this.chapters.length) return this.osd('No chapters');
+    const t = this.video.currentTime;
+    let target;
+    if (dir > 0) target = this.chapters.find((c) => c.start > t + 1);
+    else {
+      const i = this.currentChapterIndex(t);
+      // Within the first 3 s of a chapter, go to the previous one; otherwise restart this one.
+      target = i > 0 && t - this.chapters[i].start < 3 ? this.chapters[i - 1] : this.chapters[Math.max(0, i)];
+    }
+    if (!target) return this.osd('Last chapter');
+    this.seekTo(target.start);
+    this.osd(target.name);
+  }
+
+  drawChapters() {
+    const dur = this.duration();
+    if (!dur || !this.chapLayer) return;
+    this.chapLayer.replaceChildren(...this.chapters.filter((c) => c.start > 1 && c.start < dur - 1)
+      .map((c) => h('div', { class: 'chap', style: { left: `${(c.start / dur) * 100}%` } })));
   }
 
   toggleInfo() {
@@ -866,7 +1146,10 @@ class Player {
       ['Source bitrate', ms.Bitrate ? `${(ms.Bitrate / 1e6).toFixed(1)} Mbps` : '—'],
       ['Audio', as ? streamLabel(as) : '—'],
       ['Subtitles', ss ? `${streamLabel(ss)}${this.burning ? ' (burned in)' : ''}` : 'Off'],
-      ['Subtitle sync', `${this.subs.delay > 0 ? '+' : ''}${this.subs.delay.toFixed(1)} s`],
+      ['Subtitle renderer', this.ass ? 'libass (styled)' : ss ? 'Text' : '—'],
+      ['Second subtitle', this.sub2Index >= 0 ? streamLabel(streams.find((s) => s.Index === this.sub2Index)) : 'Off'],
+      ['Subtitle sync', `${this.subDelay > 0 ? '+' : ''}${this.subDelay.toFixed(1)} s`],
+      ['Sound', [store.setting('nightMode') ? 'Night mode' : '', (store.setting('volumeBoost') || 1) !== 1 ? `Boost ${Math.round(store.setting('volumeBoost') * 100)}%` : ''].filter(Boolean).join(' · ') || 'Normal'],
       ['Rendering', v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : '—'],
       ['Dropped frames', q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : '—'],
       ['Buffered ahead', `${this.bufferedAhead().toFixed(1)} s`],
@@ -928,6 +1211,9 @@ class Player {
     if (!dur) return;
     const t = p * dur;
     this.tipTime.textContent = formatTime(t);
+    const ci = this.currentChapterIndex(t);
+    this.tipChapter.textContent = ci >= 0 ? this.chapters[ci].name : '';
+    this.tipChapter.classList.toggle('hidden', ci < 0);
     const tp = this.trickplay;
     if (tp?.info) {
       const info = tp.info;
@@ -969,7 +1255,8 @@ class Player {
     this.osd(v.muted ? 'Muted' : `Volume ${Math.round(v.volume * 100)}%`);
   }
 
-  toggleFullscreen() {
+  async toggleFullscreen() {
+    if (this.mini) await this.setMini(false);
     this.setFullscreen(!fsState);
   }
 
@@ -980,14 +1267,6 @@ class Player {
   onFullscreenChange(on) {
     this.el.classList.toggle('fs', on);
     this.fsBtn.replaceChildren(icon(on ? 'fullscreenExit' : 'fullscreen'));
-  }
-
-  togglePip() {
-    if (document.pictureInPictureElement) {
-      document.exitPictureInPicture().catch(() => {});
-    } else {
-      this.video.requestPictureInPicture().catch((e) => toast(`Picture-in-picture unavailable: ${e.message}`, 'error'));
-    }
   }
 
   // ---------------------------------------------------------------- time-driven features
@@ -1259,8 +1538,9 @@ class Player {
     closeMenu();
     document.removeEventListener('keydown', this.onKey);
     window.removeEventListener('mouseup', this.onMouseUp);
-    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
     if (fsState) window.nova.setFullscreen(false);
+    if (this.mini) window.nova.setMini(false);
+    this.audioGraph?.ctx.close().catch(() => {});
     window.nova.keepAwake(false);
     window.nova.setDarkOverlay(false);
     if (navigator.mediaSession) {

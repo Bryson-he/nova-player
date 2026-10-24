@@ -107,9 +107,11 @@ export function errorBox(err, retry) {
     retry && button('Try again', { onclick: retry, variant: 'primary' }));
 }
 
-export function toast(msg, kind = 'info', ms = 3200) {
+// action: optional { label, onClick } shown as a button inside the toast.
+export function toast(msg, kind = 'info', ms = 3200, action = null) {
   const host = document.getElementById('toasts');
-  const t = h('div', { class: `toast toast-${kind}` }, msg);
+  const t = h('div', { class: `toast toast-${kind}` }, msg,
+    action ? h('button', { class: 'toast-action', onclick: action.onClick }, action.label) : null);
   host.append(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => {

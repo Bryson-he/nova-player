@@ -25,6 +25,13 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Check bundled player libraries
+        shell: bash
+        run: |
+          for f in hls.min.js jassub/jassub.js jassub/worker/worker.js jassub/wasm/jassub-worker.wasm jassub/wasm/jassub-worker-modern.wasm jassub/default.woff2; do
+            test -s "src/renderer/vendor/$f" || { echo "missing vendor/$f"; exit 1; }
+          done
+
       - name: Check version matches tag
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash

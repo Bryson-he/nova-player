@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS = {
   seekForward: 30,
   rememberTracks: true,
   autoUpdate: true,
+  styledSubs: true, // render ASS/SSA with libass (fonts, positioning, karaoke)
+  volumeBoost: 1, // 1 = 100%, up to 3 = 300%
+  nightMode: false, // dynamic range compression + dialogue lift
+  bufferSize: 'normal', // normal | large | max  (streamed/transcoded playback)
 };
 
 let data = {};
@@ -31,6 +35,7 @@ export async function initStore() {
   data.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
   data.librarySort ||= {};
   data.seriesTracks ||= {};
+  data.subDelays ||= {};
   if (!data.deviceId) {
     data.deviceId = crypto.randomUUID().replace(/-/g, '');
     window.nova.set('deviceId', data.deviceId);

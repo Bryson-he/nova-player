@@ -181,6 +181,17 @@ export function chooseAudio(item, ms) {
   return (streams.find((s) => s.IsDefault) || streams[0]).Index;
 }
 
+export const isAssSub = (s) => ['ass', 'ssa'].includes((s?.Codec || '').toLowerCase());
+
+// Secondary (top-of-screen) subtitle for dual subtitles. Off unless the user
+// picked one for this series before.
+export function chooseSecondarySubtitle(item, ms, primaryIndex) {
+  const pref = seriesPref(item.SeriesId)?.subtitle2;
+  if (!pref || pref.off) return -1;
+  const subs = subStreams(ms).filter((s) => isTextSub(s) && s.Index !== primaryIndex);
+  return matchSub(subs, pref)?.Index ?? -1;
+}
+
 export function chooseSubtitle(item, ms, audioIndex) {
   const subs = subStreams(ms);
   if (!subs.length) return -1;

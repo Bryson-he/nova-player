@@ -61,14 +61,21 @@ So the right tracks are picked even when episodes have their tracks in a differe
 - **Up Next** card with a countdown when the credits start, and auto-play of the next episode.
 - Trickplay thumbnails when hovering the seek bar.
 - Quality menu (great for watching away from home) and playback speed.
+- **Chapters**: marks on the seek bar, chapter names on hover, a chapter list, and `PgUp` / `PgDn` to jump.
+- **Night mode** (quieter explosions, clearer dialogue) and **volume boost** up to 300%.
+- **Screenshots** with `Ctrl+S`, saved at full resolution to `PicturesNova Player`.
+- **Streaming buffer** setting (1, 3 or 10 minutes ahead) for slow or unstable connections.
 - Playback info panel (`I`) that shows *why* something is transcoding.
-- Picture-in-picture, media keys, and your screen won't go to sleep during playback.
+- **Mini player**: press `T` for a small always-on-top window in the corner of your screen.
+- Media keys, and your screen won't go to sleep during playback.
 
 \* HEVC needs hardware decoding support on your GPU.
 
 **Subtitles**
-- Size, colour, background, position and outline, with a live preview in Settings.
-- Live sync adjustment with `Z` / `X`.
+- **Styled anime subtitles (ASS/SSA)**, rendered by libass exactly as authored: the release's own embedded fonts, colours, signs, positioning and karaoke.
+- **Dual subtitles**: show a second language at the top of the screen, for example English at the bottom and Japanese at the top.
+- Size, colour, background, position and outline for plain subtitles, with a live preview in Settings.
+- Live sync adjustment with `Z` / `X`, **remembered per series** (or per movie).
 - Image subtitles (PGS / VobSub) are burned in by the server automatically.
 - Smart mode: shows subtitles only when the audio isn't in your language.
 
@@ -95,7 +102,9 @@ So the right tracks are picked even when episodes have their tracks in a differe
 | `↑` / `↓` | Volume | `Z` / `X` | Subtitle sync −/+ 0.1 s |
 | `0`–`9` | Jump to 0–90 % | `[` / `]` | Slower / faster |
 | `N` / `P` | Next / previous | `I` | Playback info |
-| `Enter` | Press "Skip" | `Esc` | Exit fullscreen, then close |
+| `PgUp` / `PgDn` | Previous / next chapter | `T` | Mini player (always on top) |
+| `Ctrl+S` | Screenshot | `Enter` | Press "Skip" |
+| `Esc` | Exit fullscreen / mini player, then close | | |
 
 ## Install
 

@@ -442,3 +442,32 @@ input[type=color] { width: 44px; height: 32px; border: 0; background: none; curs
 
 .season-tabs { align-items: center; }
 .season-mark { margin-left: auto; }
+
+/* ---------- v1.2: dual subs, chapters, mini player, toasts ---------- */
+.sub-layer.top { top: 5%; bottom: auto !important; }
+.sub-layer.top .sub-cue { font-size: calc(min(3.6vh, 2.1vw) * var(--sub-scale)); }
+.player.show-controls .sub-layer.top { top: max(5%, 96px); }
+canvas.JASSUB { z-index: 1; }
+
+.seek-chapters { position: absolute; inset: 0; pointer-events: none; }
+.chap { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: rgba(10, 12, 18, 0.85); }
+.seek-chapter { max-width: 260px; padding: 3px 9px; border-radius: 6px; background: rgba(0, 0, 0, 0.85); font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mini-only { display: none !important; }
+.player.mini .mini-only { display: inline-grid !important; }
+.player.mini .p-top { height: 64px; padding: 0 150px 18px 6px; }
+.player.mini .p-title { font-size: 14px; }
+.player.mini .p-subtitle { font-size: 12px; }
+.player.mini .p-bottom { padding: 36px 10px 6px; }
+.player.mini .p-btn { width: 36px; height: 36px; }
+.player.mini .p-btn .icon { width: 22px; height: 22px; }
+.player.mini .p-btn.big { width: 40px; height: 40px; }
+.player.mini .p-ends, .player.mini .p-time, .player.mini .vol, .player.mini .info-panel,
+.player.mini .p-right > .p-btn:not(:last-child):not(:nth-last-child(2)) { display: none; }
+.player.mini .skip-btn, .player.mini .upnext { right: 10px; bottom: 76px; transform: scale(.8); transform-origin: bottom right; }
+.player.mini .osd { top: 60px; font-size: 13px; }
+.player.mini .player-loading .btn { display: none; }
+
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 14px; }
+.toast-action { border: 0; background: rgba(124, 108, 255, 0.25); color: #fff; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; }
+.toast-action:hover { background: var(--accent); }

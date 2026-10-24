@@ -339,8 +339,13 @@ class Api {
     });
   }
 
-  subtitleUrl(itemId, mediaSourceId, index) {
-    return this.url(`/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/0/Stream.vtt`, { api_key: this.token });
+  // format: 'vtt' (converted by the server) or 'ass' (original styled file).
+  subtitleUrl(itemId, mediaSourceId, index, format = 'vtt') {
+    return this.url(`/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/0/Stream.${format}`, { api_key: this.token });
+  }
+
+  attachmentUrl(itemId, mediaSourceId, index) {
+    return this.url(`/Videos/${itemId}/${mediaSourceId}/Attachments/${index}`, { api_key: this.token });
   }
 
   trickplayUrl(itemId, width, tileIndex, mediaSourceId) {

@@ -31,6 +31,7 @@ app.commandLine.appendSwitch('enable-blink-features', 'AudioVideoTracks');
 app.commandLine.appendSwitch('enable-features', 'PlatformHEVCDecoderSupport');
 
 let win = null;
+let miniRestore = null;
 let store = {};
 let saveTimer = null;
 let powerBlockId = null;
@@ -133,7 +134,7 @@ function createWindow() {
 
   const saveBounds = () => {
     if (!win || win.isDestroyed()) return;
-    if (win.isFullScreen() || win.isMinimized()) return;
+    if (win.isFullScreen() || win.isMinimized() || miniRestore) return;
     if (win.isMaximized()) {
       store.window = { ...(store.window || {}), maximized: true };
     } else {
@@ -240,6 +241,46 @@ function registerIpc() {
 
   ipcMain.on('open-external', (_e, url) => {
     if (typeof url === 'string' && /^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
+
+  // Screenshots go to Pictures\Nova Player.
+  ipcMain.handle('screenshot:save', async (_e, bytes, name) => {
+    const dir = path.join(app.getPath('pictures'), 'Nova Player');
+    await fs.promises.mkdir(dir, { recursive: true });
+    const safe = String(name || 'screenshot').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 150) || 'screenshot';
+    let file = path.join(dir, `${safe}.png`);
+    for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${safe} (${i}).png`);
+    await fs.promises.writeFile(file, Buffer.from(bytes));
+    return file;
+  });
+  ipcMain.on('shell:show', (_e, file) => {
+    if (typeof file === 'string' && file.startsWith(path.join(app.getPath('pictures'), 'Nova Player'))) shell.showItemInFolder(file);
+  });
+
+  // Mini player: small always-on-top 16:9 window in the corner of the screen.
+  ipcMain.handle('win:mini', (_e, on) => {
+    if (!win) return false;
+    if (on && !miniRestore) {
+      miniRestore = { bounds: win.getBounds(), maximized: win.isMaximized() };
+      if (win.isFullScreen()) win.setFullScreen(false);
+      if (win.isMaximized()) win.unmaximize();
+      const wa = screen.getDisplayMatching(win.getBounds()).workArea;
+      const w = 512;
+      const h = 288;
+      win.setMinimumSize(320, 180);
+      win.setBounds({ x: wa.x + wa.width - w - 24, y: wa.y + wa.height - h - 24, width: w, height: h });
+      win.setAspectRatio(16 / 9);
+      win.setAlwaysOnTop(true, 'floating');
+    } else if (!on && miniRestore) {
+      const restore = miniRestore;
+      miniRestore = null;
+      win.setAlwaysOnTop(false);
+      win.setAspectRatio(0);
+      win.setMinimumSize(960, 580);
+      win.setBounds(restore.bounds);
+      if (restore.maximized) win.maximize();
+    }
+    return !!miniRestore;
   });
 
   ipcMain.handle('app:info', () => ({
