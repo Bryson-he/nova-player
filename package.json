@@ -1,7 +1,7 @@
 {
   "name": "nova-player",
   "productName": "Nova Player",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A fast, modern Jellyfin client for Windows",
   "author": "Bryson",
   "license": "MIT",
@@ -34,7 +34,7 @@
         "provider": "github",
         "owner": "Bryson-he",
         "repo": "nova-player",
-        "releaseType": "release"
+        "releaseType": "draft"
       }
     ],
     "win": {
