@@ -1,6 +1,6 @@
 import { api, TICKS } from '../api.js';
 import {
-  h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select,
+  h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select, isNewItem, itemMenu,
   backdropUrl, posterUrl, logoUrl, landscapeUrl, formatRuntime, formatTime, endsAt, epLabel,
 } from '../ui.js';
 import { navigate, scroller } from '../router.js';
@@ -311,7 +311,8 @@ export function itemView({ id, seasonId }) {
       h('div', { class: 'ep-body' },
         h('div', { class: 'ep-title' },
           h('span', { class: 'ep-num' }, ep.IndexNumber != null ? `${ep.IndexNumber}.` : ''),
-          ep.Name),
+          ep.Name,
+          isNewItem(ep) ? h('span', { class: 'pill-new' }, 'NEW') : null),
         h('div', { class: 'ep-meta' }, [formatRuntime(ep.RunTimeTicks), aired, ep.CommunityRating ? `★ ${ep.CommunityRating.toFixed(1)}` : '']
           .filter(Boolean).join(' · ')),
         ep.Overview ? h('div', { class: 'ep-overview clamp-2' }, ep.Overview) : null),
@@ -326,6 +327,7 @@ export function itemView({ id, seasonId }) {
           }
         }, `round small ${ud.Played ? 'on' : ''}`)));
     rowEl.addEventListener('click', () => navigate('item', { id: ep.Id }));
+    rowEl.addEventListener('contextmenu', (e) => itemMenu(ep, e));
     return rowEl;
   }
 

@@ -5,6 +5,7 @@ import { store } from '../store.js';
 import { h, icon, iconBtn, itemCard, select, spinner, errorBox } from '../ui.js';
 import { scroller } from '../router.js';
 import { shufflePlay } from '../player.js';
+import { refreshNewEpisodes } from '../newcontent.js';
 
 const PAGE = 120;
 
@@ -139,6 +140,7 @@ export function libraryView({ id, name, collectionType }) {
     loading = true;
     const my = token;
     if (!loaded) status.replaceChildren(spinner());
+    if (!loaded && cfg.types.includes('Series')) await refreshNewEpisodes();
     try {
       const res = await api.items({
         ParentId: id,

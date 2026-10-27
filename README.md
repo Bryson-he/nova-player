@@ -124,6 +124,10 @@ series page and reset it with one click.
 
 ### 🎬 Built for binge-watching
 
+- **NEW badges** on shows with recently added episodes (with a count), on the new episodes themselves, and a
+  **New Episodes** row on Home. You choose how long things count as new.
+- **Subtitles are ready the moment an episode starts.** Nova fetches them (and their fonts) while the video loads,
+  and grabs the next episode's subtitles while you're still watching.
 - **Skip Intro / Recap** button, or skip automatically. Uses Jellyfin media segments (10.10+) or the Intro Skipper
   plugin.
 - **Up Next** countdown when the credits start, then the next episode plays.
@@ -144,7 +148,9 @@ Keep watching while you work. Press `T` again to go back.
 ### ✨ And the rest
 
 - **Updates itself:** new versions download in the background and install when you close Nova, or click
-  **Restart to update**.
+  **Restart to update**. A short **What's new** note shows after each update.
+- **Right-click anything** for quick actions: play, from start, mark watched, favorite, shuffle, go to series.
+- **Home stays fresh:** it refreshes when you come back to Nova, so new episodes appear without a restart.
 - **Screenshots:** `Ctrl+S` saves the full-resolution frame to `Pictures\Nova Player`.
 - **Quality menu** for watching away from home, and playback speed from 0.5× to 2×.
 - **Streaming buffer** setting (1, 3 or 10 minutes ahead) for slow or unstable connections.

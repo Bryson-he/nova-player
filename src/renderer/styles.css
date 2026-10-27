@@ -476,3 +476,21 @@ canvas.JASSUB { z-index: 1; transition: transform .25s ease; }
 .toast { pointer-events: auto; display: flex; align-items: center; gap: 14px; }
 .toast-action { border: 0; background: rgba(124, 108, 255, 0.25); color: #fff; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; }
 .toast-action:hover { background: var(--accent); }
+
+/* ---------- v1.3: NEW badges, What's new ---------- */
+.badge-new { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 6px; background: linear-gradient(135deg, #ff5f8f, #ff8a3d); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .8px; box-shadow: 0 2px 10px rgba(255, 95, 143, 0.45); }
+.card:hover .badge-new { opacity: 0; transition: opacity .15s; }
+.pill-new { display: inline-block; margin-left: 10px; padding: 1px 7px; border-radius: 5px; background: linear-gradient(135deg, #ff5f8f, #ff8a3d); color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: .7px; vertical-align: 2px; }
+
+.modal-backdrop { position: fixed; inset: 0; z-index: 4500; display: grid; place-items: center; background: rgba(5, 6, 10, 0.6); backdrop-filter: blur(6px); animation: fade-in .2s ease; }
+.modal { width: min(560px, calc(100vw - 48px)); max-height: calc(100vh - 80px); display: flex; flex-direction: column; border-radius: 20px; background: var(--surface); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+.modal-head { display: flex; align-items: center; gap: 14px; padding: 22px 24px 8px; }
+.modal-head .brand-mark { width: 44px; height: 44px; border-radius: 12px; flex: none; }
+.modal-head .brand-mark .icon { width: 26px; height: 26px; }
+.modal-title { font: 700 19px var(--font-display); }
+.modal-sub { color: var(--muted); font-size: 13px; }
+.modal-body { padding: 6px 24px; overflow-y: auto; }
+.notes h3 { font-size: 13px; color: var(--accent-2); margin: 14px 0 4px; }
+.notes ul { margin: 6px 0; padding-left: 20px; color: #d3d7e2; line-height: 1.55; }
+.notes li { margin: 7px 0; }
+.modal-actions { display: flex; justify-content: flex-end; padding: 14px 24px 20px; }

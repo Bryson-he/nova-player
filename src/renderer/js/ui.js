@@ -1,7 +1,9 @@
 // Small DOM helpers, icons, cards and menus shared by every view.
 import { api } from './api.js';
-import { navigate } from './router.js';
-import { openPlayer } from './player.js';
+import { navigate, refreshCurrent } from './router.js';
+import { openPlayer, shufflePlay } from './player.js';
+import { store } from './store.js';
+import { newEpisodeCount } from './newcontent.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -195,6 +197,21 @@ export function logoUrl(item, w = 600) {
 // ---- Cards & rows ----
 
 const PLAYABLE = new Set(['Movie', 'Episode', 'Video', 'MusicVideo']);
+const DAY = 24 * 60 * 60 * 1000;
+
+// "NEW": a show with unwatched episodes that got something added recently, or
+// an episode/movie added recently that you haven't started. Window is a setting.
+export function isNewItem(item) {
+  const days = store.setting('newBadgeDays');
+  if (!days || !item) return false;
+  const since = Date.now() - days * DAY;
+  const ud = item.UserData || {};
+  if (item.Type === 'Series') return newEpisodeCount(item.Id) > 0;
+  if (item.Type === 'Episode' || item.Type === 'Movie') {
+    return !ud.Played && !ud.PlaybackPositionTicks && Date.parse(item.DateCreated || 0) >= since;
+  }
+  return false;
+}
 
 export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove } = {}) {
   const isEp = item.Type === 'Episode';
@@ -220,6 +237,9 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
   const el = h('div', { class: `card ${shape}`, tabindex: 0, title: item.Name },
     h('div', { class: 'card-img' },
       img ? h('img', { src: img, loading: 'lazy', decoding: 'async', alt: '' }) : h('div', { class: 'card-fallback' }, icon(item.Type === 'Series' ? 'tv' : 'movie')),
+      isNewItem(item)
+        ? h('div', { class: 'badge-new' }, item.Type === 'Series' && newEpisodeCount(item.Id) > 1 ? `${newEpisodeCount(item.Id)} NEW` : 'NEW')
+        : null,
       ud.Played ? h('div', { class: 'badge badge-played' }, icon('check')) : null,
       !ud.Played && ud.UnplayedItemCount ? h('div', { class: 'badge' }, ud.UnplayedItemCount) : null,
       pct ? h('div', { class: 'progress' }, h('div', { style: { width: pct + '%' } })) : null,
@@ -237,10 +257,41 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
 
   const open = () => navigate('item', { id: item.Id });
   el.addEventListener('click', open);
+  el.addEventListener('contextmenu', (e) => itemMenu(item, e, { onRemove: onRemove && (() => onRemove(item, el)) }));
   el.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') open();
   });
   return el;
+}
+
+// Right-click menu for any movie, show or episode.
+export function itemMenu(item, e, { onRemove } = {}) {
+  e.preventDefault();
+  e.stopPropagation();
+  const ud = item.UserData || {};
+  const pos = ud.PlaybackPositionTicks || 0;
+  const playable = PLAYABLE.has(item.Type);
+  const act = (fn, done) => async () => {
+    try {
+      await fn();
+      if (done) toast(done);
+      refreshCurrent();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+  const label = item.Type === 'Episode' ? `${item.SeriesName} · ${epLabel(item)}` : item.Name;
+  popupMenu(e.currentTarget, [
+    playable ? { label: pos ? 'Resume' : 'Play', onClick: () => openPlayer(item.Id) } : null,
+    playable && pos ? { label: 'Play from start', onClick: () => openPlayer(item.Id, { startTicks: 0 }) } : null,
+    item.Type === 'Series' ? { label: 'Shuffle', onClick: () => shufflePlay(item.Id, 'Episode') } : null,
+    { label: 'Details', onClick: () => navigate('item', { id: item.Id }) },
+    item.Type === 'Episode' && item.SeriesId ? { label: 'Go to series', onClick: () => navigate('item', { id: item.SeriesId }) } : null,
+    { divider: true },
+    { label: ud.Played ? 'Mark unwatched' : 'Mark watched', onClick: act(() => api.setPlayed(item.Id, !ud.Played), ud.Played ? 'Marked unwatched' : 'Marked watched') },
+    { label: ud.IsFavorite ? 'Remove from favorites' : 'Add to favorites', onClick: act(() => api.setFavorite(item.Id, !ud.IsFavorite), ud.IsFavorite ? 'Removed from favorites' : 'Added to favorites') },
+    pos && !ud.Played ? { label: 'Remove from Continue Watching', onClick: onRemove || act(() => api.hideFromResume(item.Id), 'Removed from Continue Watching') } : null,
+  ].filter(Boolean), { title: label, at: { x: e.clientX, y: e.clientY } });
 }
 
 export function row(title, items, opts = {}) {
@@ -275,8 +326,9 @@ export function isMenuOpen() {
 }
 
 // items: [{ label, sub, checked, onClick, keepOpen, disabled } | { header } | { divider } | { el }]
-export function popupMenu(anchor, items, { title, container = document.body } = {}) {
-  if (openMenu && openMenu.anchor === anchor) {
+// at: optional { x, y } to open at the mouse (right-click menus) instead of under `anchor`.
+export function popupMenu(anchor, items, { title, container = document.body, at } = {}) {
+  if (openMenu && openMenu.anchor === anchor && !at) {
     openMenu.close();
     return null;
   }
@@ -303,10 +355,10 @@ export function popupMenu(anchor, items, { title, container = document.body } = 
     }));
   container.append(menu);
 
-  const r = anchor.getBoundingClientRect();
+  const r = at ? { left: at.x, right: at.x, top: at.y, bottom: at.y } : anchor.getBoundingClientRect();
   const mr = menu.getBoundingClientRect();
-  const left = Math.min(Math.max(8, r.right - mr.width), window.innerWidth - mr.width - 8);
-  let top = r.bottom + 6;
+  const left = Math.min(Math.max(8, at ? r.left : r.right - mr.width), window.innerWidth - mr.width - 8);
+  let top = r.bottom + (at ? 2 : 6);
   if (top + mr.height > window.innerHeight - 8) top = Math.max(8, r.top - mr.height - 6);
   menu.style.left = left + 'px';
   menu.style.top = top + 'px';

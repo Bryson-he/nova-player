@@ -141,6 +141,8 @@ export function settingsView() {
         },
       }))),
     section('Libraries',
+      row('Mark new episodes', 'Shows a NEW badge on shows with unwatched episodes added recently, and on new episodes and movies.',
+        choice('newBadgeDays', [[0, 'Off'], [3, 'Added in the last 3 days'], [7, 'Added in the last 7 days'], [14, 'Added in the last 2 weeks'], [30, 'Added in the last 30 days']], true)),
       row('Reset saved sorting', 'Every library remembers its own sort, order, filter and card size.', button('Reset', {
         onclick: () => {
           store.set('librarySort', {});

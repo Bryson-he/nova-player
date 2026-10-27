@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
   volumeBoost: 1, // 1 = 100%, up to 3 = 300%
   nightMode: false, // dynamic range compression + dialogue lift
   bufferSize: 'normal', // normal | large | max  (streamed/transcoded playback)
+  newBadgeDays: 7, // how long something counts as NEW (0 = off)
 };
 
 let data = {};

@@ -10,6 +10,7 @@ import { itemView } from './views/item.js';
 import { searchView } from './views/search.js';
 import { settingsView } from './views/settings.js';
 import { initUpdates, updateCard, appInfo } from './updates.js';
+import { maybeShowWhatsNew } from './whatsnew.js';
 
 const root = document.getElementById('app');
 const SUPPORTED_LIBS = new Set(['movies', 'tvshows', 'boxsets', 'homevideos', 'musicvideos', 'mixed', undefined, null, '']);
@@ -29,6 +30,7 @@ async function boot() {
   if (server?.url && user?.Id && token) {
     api.configure({ base: server.url, token, userId: user.Id, serverVersion: server.version });
     showShell();
+    maybeShowWhatsNew(appInfo().version);
     // Validate the saved session in the background; never block startup on it.
     api.me().catch((err) => {
       if (err.status === 401) signOut('Your session expired. Please sign in again.');

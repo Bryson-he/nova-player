@@ -7,7 +7,7 @@ export const CLIENT_NAME = 'Nova Player';
 export const CLIENT_VERSION = '1.0.0';
 const DEVICE_NAME = 'Windows PC';
 
-export const CARD_FIELDS = 'PrimaryImageAspectRatio,ProductionYear,Overview';
+export const CARD_FIELDS = 'PrimaryImageAspectRatio,ProductionYear,Overview,DateCreated';
 const DETAIL_FIELDS = 'Overview,Genres,People,Studios,MediaSources,MediaStreams,Trickplay,Taglines,ChildCount,RecursiveItemCount,DateCreated,Chapters,ExternalUrls,RemoteTrailers';
 
 export class ApiError extends Error {
@@ -247,7 +247,7 @@ class Api {
 
   episodes(seriesId, query = {}) {
     return this.request(`/Shows/${seriesId}/Episodes`, {
-      query: { userId: this.userId, Fields: 'Overview,PrimaryImageAspectRatio', ...query },
+      query: { userId: this.userId, Fields: 'Overview,PrimaryImageAspectRatio,DateCreated', ...query },
     }).then((r) => r?.Items || []);
   }
 

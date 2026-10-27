@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { h, icon, row, spinner, errorBox, backdropUrl, logoUrl, button, epLabel, formatTime, toast } from '../ui.js';
+import { refreshNewEpisodes, newEpisodeShows } from '../newcontent.js';
 import { navigate } from '../router.js';
 import { openPlayer } from '../player.js';
 import { TICKS } from '../api.js';
@@ -38,10 +39,18 @@ export function homeView() {
     }
   }
 
+  let lastLoad = 0;
+  // Coming back to Nova after a while: refresh Home so new episodes show up.
+  const onFocus = () => {
+    if (el.isConnected && Date.now() - lastLoad > 5 * 60 * 1000) load();
+  };
+  window.addEventListener('focus', onFocus);
+
   async function load() {
+    lastLoad = Date.now();
     const my = ++token;
     try {
-      const [resumeR, nextUpR, viewsR] = await Promise.allSettled([api.resume(), api.nextUp(), api.views()]);
+      const [resumeR, nextUpR, viewsR] = await Promise.allSettled([api.resume(), api.nextUp(), api.views(), refreshNewEpisodes()]);
       if (my !== token) return;
       if (viewsR.status === 'rejected' && resumeR.status === 'rejected') throw viewsR.reason;
 
@@ -51,14 +60,19 @@ export function homeView() {
       if (resume.length) frag.push(heroFor(resume[0]));
       if (resume.length) frag.push(row('Continue Watching', resume, { shape: 'landscape', onRemove: removeFromResume }));
       if (nextUp.length) frag.push(row('Next Up', nextUp, { shape: 'landscape' }));
+      const newSlot = h('div');
       const favSlot = h('div');
-      frag.push(favSlot);
+      frag.push(newSlot, favSlot);
 
       const libs = (viewsR.value?.Items || []).filter((v) => ['movies', 'tvshows', 'homevideos', 'mixed', undefined].includes(v.CollectionType));
       const latestSlots = libs.map(() => h('div'));
       frag.push(...latestSlots);
       if (!frag.length) frag.push(h('div', { class: 'empty' }, icon('movie'), h('p', null, 'Nothing here yet.')));
       el.replaceChildren(...frag);
+
+      newEpisodeShows().then((items) => {
+        if (my === token && items.length) newSlot.replaceWith(row('New Episodes', items));
+      });
 
       api.favorites().then((items) => {
         if (my === token && items.length) favSlot.replaceWith(row('Favorites', items));
@@ -81,6 +95,7 @@ export function homeView() {
     onShow: load,
     destroy() {
       token++;
+      window.removeEventListener('focus', onFocus);
     },
   };
 }
