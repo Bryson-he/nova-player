@@ -1,3 +1,4 @@
+// @ts-check
 // Jellyfin REST client. Every call is async with a timeout so a slow or
 // unreachable server can never lock up the interface.
 import { store } from './store.js';
@@ -10,37 +11,58 @@ const DEVICE_NAME = 'Windows PC';
 export const CARD_FIELDS = 'PrimaryImageAspectRatio,ProductionYear,Overview,DateCreated';
 const DETAIL_FIELDS = 'Overview,Genres,People,Studios,MediaSources,MediaStreams,Trickplay,Taglines,ChildCount,RecursiveItemCount,DateCreated,Chapters,ExternalUrls,RemoteTrailers';
 
+/**
+ * @typedef {object} RequestOptions
+ * @property {string} [method]
+ * @property {Record<string, unknown>} [query]
+ * @property {unknown} [body]
+ * @property {number} [timeout]  milliseconds
+ * @property {AbortSignal} [signal]
+ * @property {string} [base]  another server, used while signing in
+ */
+
 export class ApiError extends Error {
+  /** @param {number} status @param {string} message */
   constructor(status, message) {
     super(message);
     this.status = status;
   }
 }
 
+/**
+ * Removes the query-string credentials Jellyfin puts in TranscodingUrl and
+ * DeliveryUrl. The token travels in the Authorization header instead, which
+ * the main process adds to every request for the signed-in server.
+ * @param {string} url
+ */
+export function stripKeyParams(url) {
+  const [head, hash = ''] = String(url).split('#');
+  const q = head.indexOf('?');
+  if (q < 0) return url;
+  const kept = head.slice(q + 1).split('&').filter((p) => p && !/^(api_key|apikey)=/i.test(p));
+  return head.slice(0, q) + (kept.length ? '?' + kept.join('&') : '') + (hash ? '#' + hash : '');
+}
+
 class Api {
   base = '';
-  token = '';
   userId = '';
+  /** True when the main process holds a token for `base`. The page never sees the token. */
+  signedIn = false;
+  /** @type {(() => void) | null} */
   onUnauthorized = null;
   version = CLIENT_VERSION;
   serverVersion = '';
 
-  // Query-string auth for URLs the browser loads itself (subtitles, fonts,
-  // trickplay, streams). Jellyfin 10.10 added `ApiKey`; 10.11+ rejects the
-  // legacy `api_key` with 401, so pick by server version.
-  get keyParam() {
-    const [major, minor] = String(this.serverVersion).split('.').map(Number);
-    if (!major) return 'ApiKey';
-    return major > 10 || (major === 10 && minor >= 10) ? 'ApiKey' : 'api_key';
-  }
-
-  configure({ base, token, userId, serverVersion }) {
+  /** @param {{ base?: string, signedIn?: boolean, userId?: string, serverVersion?: string }} opts */
+  configure({ base, signedIn, userId, serverVersion }) {
     if (base !== undefined) this.base = base.replace(/\/+$/, '');
-    if (token !== undefined) this.token = token;
+    if (signedIn !== undefined) this.signedIn = signedIn;
     if (userId !== undefined) this.userId = userId;
     if (serverVersion !== undefined) this.serverVersion = serverVersion || '';
   }
 
+  // Identifies the client. The main process swaps in a header with the token
+  // for requests to the signed-in server.
   authHeader() {
     const parts = [
       `Client="${CLIENT_NAME}"`,
@@ -48,7 +70,6 @@ class Api {
       `DeviceId="${store.get('deviceId')}"`,
       `Version="${this.version}"`,
     ];
-    if (this.token) parts.push(`Token="${this.token}"`);
     return 'MediaBrowser ' + parts.join(', ');
   }
 
@@ -63,17 +84,14 @@ class Api {
     return u.toString();
   }
 
-  // Makes a server-relative URL absolute and makes sure it carries the API key.
+  // Makes a server-relative URL absolute, without any key in the query string.
+  /** @param {string} relOrAbs */
   absolute(relOrAbs) {
     const full = /^https?:/i.test(relOrAbs) ? relOrAbs : this.base + (relOrAbs.startsWith('/') ? '' : '/') + relOrAbs;
-    return this.withKey(full);
+    return stripKeyParams(full);
   }
 
-  withKey(url) {
-    if (/[?&](api_key|apikey)=/i.test(url)) return url;
-    return url + (url.includes('?') ? '&' : '?') + this.keyParam + '=' + encodeURIComponent(this.token);
-  }
-
+  /** @param {string} path @param {RequestOptions} [opts] */
   async request(path, { method = 'GET', query, body, timeout = 20000, signal, base } = {}) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(new Error('Request timed out')), timeout);
@@ -95,7 +113,7 @@ class Api {
         if (res.status === 401) {
           msg = 'Not authorized. Please sign in again.';
           // A revoked or expired token: send the user back to sign-in once.
-          if (this.token && path !== '/Sessions/Logout') this.onUnauthorized?.();
+          if (this.signedIn) this.onUnauthorized?.();
         }
         throw new ApiError(res.status, msg);
       }
@@ -107,7 +125,7 @@ class Api {
         const reason = ctrl.signal.reason;
         throw reason instanceof Error ? reason : new Error('Request cancelled');
       }
-      throw new Error(`Cannot reach server (${err.message})`);
+      throw new Error(`Cannot reach server (${err.message})`, { cause: err });
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
@@ -115,6 +133,7 @@ class Api {
   }
 
   // Jellyfin 10.9 moved several user routes. Try the new route first, then the legacy one.
+  /** @param {string[]} paths @param {RequestOptions} [opts] */
   async tryPaths(paths, opts) {
     let lastErr;
     for (const p of paths) {
@@ -130,36 +149,31 @@ class Api {
 
   // ---- Server & auth ----
 
+  // Probing and sign-in run in the main process, which keeps the token.
+  /**
+   * @param {string} input
+   * @returns {Promise<{ base: string, info: { Id: string, ServerName: string, Version: string }, encrypted: boolean, privateHost: boolean }>}
+   */
   async findServer(input) {
-    const raw = input.trim().replace(/\/+$/, '');
-    if (!raw) throw new Error('Enter your server address');
-    const candidates = [];
-    if (/^https?:\/\//i.test(raw)) {
-      candidates.push(raw);
-    } else {
-      const host = raw.split('/')[0];
-      const hasPort = /:\d+$/.test(host);
-      if (!hasPort) candidates.push(`http://${host}:8096${raw.slice(host.length)}`);
-      candidates.push(`https://${raw}`, `http://${raw}`);
-    }
-    let lastErr;
-    for (const base of candidates) {
-      try {
-        const info = await this.request('/System/Info/Public', { base, timeout: 6000 });
-        if (info?.Id) return { base, info };
-      } catch (err) {
-        lastErr = err;
-      }
-    }
-    throw new Error(`Couldn't find a Jellyfin server at "${raw}". ${lastErr ? lastErr.message : ''}`);
+    const res = await window.nova.findServer(String(input));
+    if ('error' in res && res.error) throw new Error(res.error);
+    return /** @type {NovaFoundServer} */ (res);
   }
 
   publicUsers() {
     return this.request('/Users/Public', { timeout: 6000 }).catch(() => []);
   }
 
+  /** @param {{ username: string, password: string } | { secret: string }} req */
+  async #signIn(req) {
+    const res = await window.nova.signIn({ base: this.base, ...req });
+    if (res.ok === false) throw new ApiError(res.status || 0, res.status === 401 ? 'Not authorized.' : res.message);
+    return res;
+  }
+
+  /** @param {string} username @param {string} password */
   login(username, password) {
-    return this.request('/Users/AuthenticateByName', { method: 'POST', body: { Username: username, Pw: password } });
+    return this.#signIn({ username, password });
   }
 
   quickConnectEnabled() {
@@ -175,12 +189,13 @@ class Api {
     return this.request('/QuickConnect/Connect', { query: { secret }, timeout: 8000 });
   }
 
+  /** @param {string} secret */
   quickConnectAuth(secret) {
-    return this.request('/Users/AuthenticateWithQuickConnect', { method: 'POST', body: { Secret: secret } });
+    return this.#signIn({ secret });
   }
 
   logout() {
-    return this.request('/Sessions/Logout', { method: 'POST', timeout: 4000 }).catch(() => {});
+    return window.nova.signOut().catch(() => {});
   }
 
   me() {
@@ -330,6 +345,11 @@ class Api {
 
   // ---- URLs ----
 
+  /**
+   * @param {string} id
+   * @param {string} [type]
+   * @param {{ tag?: string, maxWidth?: number, maxHeight?: number, quality?: number, index?: number }} [opts]
+   */
   image(id, type = 'Primary', { tag, maxWidth, maxHeight, quality = 90, index } = {}) {
     const path = `/Items/${id}/Images/${type}${index != null ? '/' + index : ''}`;
     return this.url(path, { tag, maxWidth, maxHeight, quality });
@@ -346,21 +366,20 @@ class Api {
       deviceId: store.get('deviceId'),
       PlaySessionId: playSessionId,
       Tag: ms.ETag,
-      [this.keyParam]: this.token,
     });
   }
 
   // format: 'vtt' (converted by the server) or 'ass' (original styled file).
   subtitleUrl(itemId, mediaSourceId, index, format = 'vtt') {
-    return this.url(`/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/0/Stream.${format}`, { [this.keyParam]: this.token });
+    return this.url(`/Videos/${itemId}/${mediaSourceId}/Subtitles/${index}/0/Stream.${format}`);
   }
 
   attachmentUrl(itemId, mediaSourceId, index) {
-    return this.url(`/Videos/${itemId}/${mediaSourceId}/Attachments/${index}`, { [this.keyParam]: this.token });
+    return this.url(`/Videos/${itemId}/${mediaSourceId}/Attachments/${index}`);
   }
 
   trickplayUrl(itemId, width, tileIndex, mediaSourceId) {
-    return this.url(`/Videos/${itemId}/Trickplay/${width}/${tileIndex}.jpg`, { mediaSourceId, [this.keyParam]: this.token });
+    return this.url(`/Videos/${itemId}/Trickplay/${width}/${tileIndex}.jpg`, { mediaSourceId });
   }
 }
 

@@ -1,0 +1,24 @@
+{
+  // Type checks only the files marked // @ts-check (API client, store, IPC
+  // layer, main-process security helpers). Nothing is emitted.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "noImplicitThis": true,
+    "skipLibCheck": true
+  },
+  "files": [
+    "src/main/security.js",
+    "src/main/ipc-contract.js",
+    "src/main/preload.js",
+    "src/renderer/js/api.js",
+    "src/renderer/js/store.js",
+    "src/renderer/js/nova.d.ts"
+  ]
+}

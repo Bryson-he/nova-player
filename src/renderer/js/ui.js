@@ -44,6 +44,7 @@ const ICONS = {
   download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
   shuffle: 'M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z',
   trailer: 'M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z',
+  lockOpen: 'M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z',
   doneAll: 'M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z',
 };
 
@@ -55,7 +56,6 @@ export function h(tag, attrs, ...children) {
       if (k === 'class') el.className = v;
       else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
       else if (k === 'dataset') Object.assign(el.dataset, v);
-      else if (k === 'html') el.innerHTML = v;
       else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
       else if (k === 'value' || k === 'checked' || k === 'selected' || k === 'disabled') el[k] = v;
       else el.setAttribute(k, v === true ? '' : v);
@@ -217,7 +217,7 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
   const isEp = item.Type === 'Episode';
   const img = shape === 'landscape' ? landscapeUrl(item) : posterUrl(item);
   const title = isEp && showSeries ? item.SeriesName : item.Name;
-  let sub = '';
+  let sub;
   if (isEp) sub = [epLabel(item), showSeries ? item.Name : ''].filter(Boolean).join(' · ');
   else if (item.Type === 'Series') sub = item.ProductionYear ? `${item.ProductionYear}${item.Status === 'Continuing' ? ' – Present' : ''}` : '';
   else sub = item.ProductionYear || '';

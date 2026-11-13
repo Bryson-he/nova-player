@@ -50,6 +50,11 @@ export function closePlayer() {
   active?.destroy(true);
 }
 
+// Closes the player and resolves once the server has been told playback stopped.
+export function closePlayerAndReport() {
+  return active ? active.destroy(true) : Promise.resolve();
+}
+
 export function isPlayerOpen() {
   return !!active;
 }
@@ -1625,16 +1630,19 @@ class Player {
     api.reportProgress(this.reportBody());
   }
 
+  // Resolves when the stop report (and transcode cleanup) has gone out.
   finish(ended = false) {
     clearInterval(this.countdownTimer);
-    if (!this.item) return;
+    if (!this.item) return Promise.resolve();
+    const pending = [];
     if (this.startedReported) {
       const body = this.reportBody();
       if (ended && this.item.RunTimeTicks) body.PositionTicks = this.item.RunTimeTicks;
-      api.reportStopped(body);
+      pending.push(api.reportStopped(body));
       this.startedReported = false;
     }
-    if (this.playSessionId && this.method && this.method !== 'DirectPlay') api.stopEncoding(this.playSessionId);
+    if (this.playSessionId && this.method && this.method !== 'DirectPlay') pending.push(api.stopEncoding(this.playSessionId));
+    return Promise.all(pending);
   }
 
   // ---------------------------------------------------------------- chrome
@@ -1664,12 +1672,12 @@ class Player {
   }
 
   destroy(silent = false) {
-    if (this.destroyed) return;
+    if (this.destroyed) return Promise.resolve();
     this.destroyed = true;
     this.loadToken++;
     this.subToken++;
     this.abort?.abort();
-    this.finish(false);
+    const reported = this.finish(false);
     this.teardownStream();
     for (const t of [this.hideTimer, this.osdTimer, this.waitTimer, this.stall1, this.stall2]) clearTimeout(t);
     clearInterval(this.countdownTimer);
@@ -1697,5 +1705,6 @@ class Player {
     document.title = 'Nova Player';
     if (active === this) active = null;
     if (!silent) refreshCurrent();
+    return reported;
   }
 }

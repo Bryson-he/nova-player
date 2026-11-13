@@ -9,16 +9,47 @@ function parseTimestamp(s) {
   return sec;
 }
 
-const escapeHtml = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
-function cueToHtml(text) {
-  let t = text
+/**
+ * A cue's text as lines of styled runs. <i>, <b> and <u> are kept; every
+ * other tag (voice, class, font) is dropped. The result is plain data that
+ * the renderer turns into text nodes, so cue text can never become markup.
+ * @param {string} text
+ * @returns {{ text: string, i?: boolean, b?: boolean, u?: boolean }[][]}
+ */
+export function cueToLines(text) {
+  const t = text
     .replace(/\{\\[^}]*\}/g, '') // ASS override tags
     .replace(/\\N/gi, '\n');
-  t = escapeHtml(t);
-  t = t.replace(/&lt;(\/?)(i|b|u)&gt;/gi, '<$1$2>'); // keep basic styling
-  t = t.replace(/&lt;\/?[a-z][^&]*?&gt;/gi, ''); // drop voice/class/font tags
-  return t.split('\n').map((l) => l.trim()).filter(Boolean).join('<br>');
+  const style = { i: 0, b: 0, u: 0 };
+  const lines = [];
+  for (const rawLine of t.split('\n')) {
+    const runs = [];
+    for (const part of rawLine.split(/(<\/?[a-z][^>]*>)/i)) {
+      const tag = /^<(\/?)(i|b|u)(?:[\s.][^>]*)?>$/i.exec(part);
+      if (tag) {
+        const k = tag[2].toLowerCase();
+        style[k] = Math.max(0, style[k] + (tag[1] ? -1 : 1));
+        continue;
+      }
+      if (/^<\/?[a-z]/i.test(part)) continue; // voice/class/font tags
+      const plain = part.replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_m, e) => ENTITIES[e]);
+      if (!plain) continue;
+      const run = { text: plain };
+      if (style.i) run.i = true;
+      if (style.b) run.b = true;
+      if (style.u) run.u = true;
+      runs.push(run);
+    }
+    if (runs.length) {
+      runs[0].text = runs[0].text.replace(/^\s+/, '');
+      runs[runs.length - 1].text = runs[runs.length - 1].text.replace(/\s+$/, '');
+    }
+    const kept = runs.filter((r) => r.text);
+    if (kept.length) lines.push(kept);
+  }
+  return lines;
 }
 
 export function parseVtt(text) {
@@ -36,8 +67,8 @@ export function parseVtt(text) {
       buf.push(lines[i]);
       i++;
     }
-    const html = cueToHtml(buf.join('\n'));
-    if (html && end > start) cues.push({ start, end, html });
+    const cueLines = cueToLines(buf.join('\n'));
+    if (cueLines.length && end > start) cues.push({ start, end, lines: cueLines, key: JSON.stringify(cueLines) });
   }
   cues.sort((a, b) => a.start - b.start);
   return cues;
@@ -64,7 +95,7 @@ export class SubtitleRenderer {
   clear() {
     this.cues = [];
     this.stop();
-    this.render('');
+    this.render([]);
   }
 
   setDelay(sec) {
@@ -106,14 +137,35 @@ export class SubtitleRenderer {
     const active = [];
     for (let i = idx; i >= 0 && i > idx - 30; i--) {
       const c = this.cues[i];
-      if (c.end > t) active.unshift(c.html);
+      if (c.end > t) active.unshift(c);
     }
-    this.render(active.join('<br>'));
+    this.render(active);
   }
 
-  render(html) {
-    if (html === this.last) return;
-    this.last = html;
-    this.layer.innerHTML = html ? `<span class="sub-cue">${html}</span>` : '';
+  // Cue text only ever becomes text nodes (plus <i>/<b>/<u> wrappers), never markup.
+  render(cues) {
+    const key = cues.map((c) => c.key).join('|');
+    if (key === this.last) return;
+    this.last = key;
+    if (!cues.length) {
+      this.layer.replaceChildren();
+      return;
+    }
+    const span = document.createElement('span');
+    span.className = 'sub-cue';
+    cues.flatMap((c) => c.lines).forEach((line, n) => {
+      if (n) span.append(document.createElement('br'));
+      for (const run of line) {
+        let node = document.createTextNode(run.text);
+        for (const tag of ['u', 'b', 'i']) {
+          if (!run[tag]) continue;
+          const wrap = document.createElement(tag);
+          wrap.append(node);
+          node = wrap;
+        }
+        span.append(node);
+      }
+    });
+    this.layer.replaceChildren(span);
   }
 }
