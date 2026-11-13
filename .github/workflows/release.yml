@@ -60,6 +60,19 @@ jobs:
       - name: Build
         run: npm run dist
 
+      # A pre-release (2.0.0-beta.1) gets a beta.yml update file. Publish it as
+      # latest.yml too, so copies with "Get beta versions" on find it either way.
+      - name: Update files
+        shell: bash
+        working-directory: dist
+        run: |
+          if [ ! -f latest.yml ]; then
+            ch=$(ls *.yml | grep -v builder | head -1)
+            test -n "$ch" || { echo "no update file"; exit 1; }
+            cp "$ch" latest.yml
+          fi
+          ls -1 *.yml
+
       - name: Hash
         shell: bash
         working-directory: dist
@@ -74,6 +87,7 @@ jobs:
             dist/NovaPlayer-Setup.exe.blockmap
             dist/NovaPlayer-Portable.exe
             dist/latest.yml
+            dist/beta.yml
             dist/SHA256SUMS.txt
 
   publish:
@@ -112,9 +126,14 @@ jobs:
             echo '```'
             echo 'Build provenance: `gh attestation verify NovaPlayer-Setup.exe --repo '"$GH_REPO"'`'
           } > notes.md
-          gh release create "$GITHUB_REF_NAME" --draft --title "Nova Player $GITHUB_REF_NAME" --notes-file notes.md --generate-notes
+          # A version with a hyphen (2.0.0-beta.1) is a pre-release: it never becomes
+          # "latest", so it only reaches copies with "Get beta versions" on.
+          case "$GITHUB_REF_NAME" in *-*) kind=--prerelease ;; *) kind= ;; esac
+          gh release create "$GITHUB_REF_NAME" --draft $kind --title "Nova Player $GITHUB_REF_NAME" --notes-file notes.md --generate-notes
           gh release upload "$GITHUB_REF_NAME" dist/NovaPlayer-Setup.exe dist/NovaPlayer-Setup.exe.blockmap dist/NovaPlayer-Portable.exe dist/latest.yml dist/SHA256SUMS.txt
+          if [ -f dist/beta.yml ]; then gh release upload "$GITHUB_REF_NAME" dist/beta.yml; fi
           for f in latest.yml NovaPlayer-Setup.exe NovaPlayer-Setup.exe.blockmap NovaPlayer-Portable.exe; do
             gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | grep -qx "$f" || { echo "missing $f"; exit 1; }
           done
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          if [ -n "$kind" ]; then gh release edit "$GITHUB_REF_NAME" --draft=false
+          else gh release edit "$GITHUB_REF_NAME" --draft=false --latest; fi

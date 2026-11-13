@@ -5,6 +5,15 @@ import { h, button, novaMark } from './ui.js';
 import { trapFocus } from './dialog.js';
 
 export const NOTES = {
+  '2.0.0': [
+    'A new look: calm graphite, one warm accent, a new icon, and Mica behind the sidebar on Windows 11.',
+    'Search from anywhere with Ctrl K. Results appear as you type, including people.',
+    "Play, pause and skip from the taskbar thumbnail, and jump back into a show from the taskbar's Continue watching list.",
+    "Nova finds Jellyfin servers on your network, remembers the ones you've used, and lets you switch user or server from the account menu.",
+    'Every screen works with the keyboard; press ? to see every shortcut.',
+    'Settings → Appearance: your Windows accent colour, artwork tints, reduced motion or transparency, and zoom (Ctrl + / Ctrl −).',
+    'Sleep timer, Still watching? after a few episodes, and video fit (V) for ultrawide screens.',
+  ],
   '1.4.0': [
     'Safer sign-in: your login now stays inside Nova\'s core and is never written into video, subtitle or picture links, so it can\'t end up in server or proxy logs.',
     'Nova tries a secure (HTTPS) connection first, and warns before sending your password unencrypted over the internet. Servers on your home network or Tailscale work as before.',
