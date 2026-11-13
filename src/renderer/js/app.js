@@ -26,11 +26,11 @@ async function boot() {
   if (appInfo().version) api.version = appInfo().version;
   const server = store.get('server');
   const user = store.get('user');
-  const token = store.token;
-  if (server?.url && user?.Id && token) {
-    api.configure({ base: server.url, token, userId: user.Id, serverVersion: server.version });
+  if (server?.url && user?.Id && store.signedIn) {
+    api.configure({ base: server.url, signedIn: true, userId: user.Id, serverVersion: server.version });
     showShell();
     maybeShowWhatsNew(appInfo().version);
+    if (!store.tokenSaved) toast("Windows couldn't encrypt your sign-in, so it isn't saved. You'll sign in again next time.", 'error', 8000);
     // Validate the saved session in the background; never block startup on it.
     api.me().catch((err) => {
       if (err.status === 401) signOut('Your session expired. Please sign in again.');
@@ -45,7 +45,20 @@ async function boot() {
       })
       .catch(() => {});
   } else {
-    showLogin();
+    showLogin(takeSignOutMessage());
+  }
+}
+
+// The page reloads on sign-in and sign-out so its security policy names the
+// right server; a sign-out message survives the reload here.
+const SIGNOUT_KEY = 'nova:signout-message';
+function takeSignOutMessage() {
+  try {
+    const msg = sessionStorage.getItem(SIGNOUT_KEY);
+    sessionStorage.removeItem(SIGNOUT_KEY);
+    return msg || undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -57,24 +70,22 @@ export function showLogin(message) {
 
 function onLoggedIn({ server, auth }) {
   store.set('server', server);
-  store.set('user', { Id: auth.User.Id, Name: auth.User.Name, PrimaryImageTag: auth.User.PrimaryImageTag });
-  store.setToken(auth.AccessToken);
-  api.configure({ base: server.url, token: auth.AccessToken, userId: auth.User.Id, serverVersion: server.version });
-  showShell();
+  store.set('user', auth.user);
+  location.reload();
 }
 
 export async function signOut(message) {
   if (signingOut) return;
   signingOut = true;
+  closePlayer();
+  await api.logout();
+  store.set('user', null);
   try {
-    await api.logout();
-    store.setToken(null);
-    store.set('user', null);
-    api.configure({ token: '', userId: '' });
-    showLogin(message);
-  } finally {
-    signingOut = false;
+    if (message) sessionStorage.setItem(SIGNOUT_KEY, message);
+  } catch {
+    // The message is a nicety.
   }
+  location.reload();
 }
 
 function showShell() {
@@ -124,7 +135,9 @@ function showShell() {
           : h('div', { class: 'avatar avatar-letter' }, (user?.Name || '?')[0].toUpperCase()),
         h('div', { class: 'nav-user-text' },
           h('div', { class: 'nav-user-name' }, user?.Name || ''),
-          h('div', { class: 'nav-user-server' }, server?.name || server?.url || '')),
+          h('div', { class: 'nav-user-server' },
+            store.get('serverInsecure') ? h('span', { class: 'insecure-lock', title: 'Not encrypted: this server uses plain HTTP' }, icon('lockOpen')) : null,
+            server?.name || server?.url || '')),
         iconBtn('logout', 'Sign out', () => signOut())));
     backBtn.classList.toggle('hidden', !canGoBack());
   };

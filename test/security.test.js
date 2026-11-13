@@ -5,6 +5,7 @@ const path = require('path');
 const {
   isInside, originOf, isPrivateHost, serverCandidates, safeFileName, validStoreWrite, STORE_KEYS, buildCsp,
 } = require('../src/main/security');
+const { CHANNELS } = require('../src/main/ipc-contract');
 
 test('isInside accepts the folder and its children only', () => {
   const base = path.join('C:', 'Users', 'me', 'Pictures', 'Nova Player');
@@ -97,3 +98,13 @@ test('content security policy names only the signed-in server', () => {
   assert.match(buildCsp(null), /connect-src 'self' http: https:/);
 });
 
+test('every IPC channel is well formed', () => {
+  const names = new Set();
+  for (const [ch, def] of Object.entries(CHANNELS)) {
+    assert.ok(['invoke', 'send', 'event'].includes(def.kind), ch);
+    assert.ok(def.expose && !names.has(def.expose), `${ch} exposes a unique name`);
+    names.add(def.expose);
+    if (def.kind !== 'event') assert.ok(def.args.every((a) => typeof a === 'function'), ch);
+  }
+  assert.ok(!('store:token' in CHANNELS), 'no channel carries the token');
+});

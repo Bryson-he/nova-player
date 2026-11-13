@@ -29,9 +29,11 @@ export function loginView({ onDone, message }) {
       go.disabled = true;
       go.replaceChildren(h('span', { class: 'spinner small' }), h('span', null, 'Connecting…'));
       try {
-        const { base, info } = await api.findServer(input.value);
+        const { base, info, encrypted, privateHost } = await api.findServer(input.value);
+        // Plain HTTP outside the home network would send the password readable to anyone on the way.
+        if (!encrypted && !privateHost && !(await confirmInsecure(base))) return;
         server = { url: base, name: info.ServerName, id: info.Id, version: info.Version };
-        api.configure({ base, token: '', userId: '', serverVersion: info.Version });
+        api.configure({ base, signedIn: false, userId: '', serverVersion: info.Version });
         await stepUser();
       } catch (e) {
         errEl.textContent = e.message;
@@ -48,6 +50,28 @@ export function loginView({ onDone, message }) {
       errEl,
       go);
     setTimeout(() => input.focus(), 50);
+  }
+
+  function confirmInsecure(base) {
+    return new Promise((resolve) => {
+      const done = (ok) => {
+        overlay.remove();
+        resolve(ok);
+      };
+      const overlay = h('div', { class: 'modal-backdrop' },
+        h('div', { class: 'modal', role: 'alertdialog', 'aria-labelledby': 'insecure-title' },
+          h('div', { class: 'modal-head' },
+            h('div', { class: 'brand-mark' }, icon('lockOpen')),
+            h('div', { class: 'modal-title', id: 'insecure-title' }, 'This connection is not encrypted')),
+          h('div', { class: 'modal-body' },
+            h('p', null, `${base} uses plain HTTP. Your password and everything you watch would travel unencrypted over the internet.`),
+            h('p', { class: 'modal-sub' }, 'Use an https:// address if your server has one.')),
+          h('div', { class: 'modal-actions gap' },
+            button('Go back', { variant: 'primary', onclick: () => done(false) }),
+            button('Connect anyway', { onclick: () => done(true) }))));
+      document.body.append(overlay);
+      overlay.querySelector('button')?.focus();
+    });
   }
 
   async function stepUser() {

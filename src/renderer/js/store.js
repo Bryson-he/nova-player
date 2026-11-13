@@ -59,12 +59,13 @@ export const store = {
     window.nova.set('settings', data.settings);
     for (const fn of settingListeners) fn(key, value);
   },
-  get token() {
-    return data.token || null;
+  // Whether the main process holds a login. The token itself never comes here.
+  get signedIn() {
+    return !!data.signedIn;
   },
-  setToken(token) {
-    data.token = token || null;
-    window.nova.setToken(token || null);
+  // False when Windows encryption is unavailable, so the login only lasts this session.
+  get tokenSaved() {
+    return data.tokenSaved !== false;
   },
 };
 

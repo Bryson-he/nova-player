@@ -5,6 +5,10 @@ const {
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
+const {
+  originOf, isPrivateHost, isEncrypted, serverCandidates, validStoreWrite, MAX_STORE_BYTES,
+} = require('./security');
+const { CHANNELS } = require('./ipc-contract');
 
 // NOVA_PROFILE runs a separate, isolated profile (handy for testing a second server).
 if (process.env.NOVA_PROFILE) {
@@ -20,6 +24,9 @@ if (!app.requestSingleInstanceLock()) {
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.png');
+const APP_ORIGIN = 'app://nova';
+const CLIENT_NAME = 'Nova Player';
+const DEVICE_NAME = 'Windows PC';
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
@@ -35,6 +42,14 @@ let miniRestore = null;
 let store = {};
 let saveTimer = null;
 let powerBlockId = null;
+
+// The Jellyfin login lives here only. The page never sees the token: it is
+// added as an Authorization header to requests for the server it was issued
+// for (see installNetworkHooks), and the page only learns whether one exists.
+let auth = { origin: null, base: null, token: null };
+let tokenSaved = true;
+// The server being probed during sign-in, before any token exists.
+let pendingOrigin = null;
 
 const storeFile = () => path.join(app.getPath('userData'), 'nova-store.json');
 
@@ -68,12 +83,11 @@ function scheduleSave() {
   }, 400);
 }
 
+// Without OS encryption the token is kept in memory only, never written in
+// plain text; the user signs in again next launch.
 function encryptToken(token) {
-  if (!token) return undefined;
-  if (safeStorage.isEncryptionAvailable()) {
-    return 'enc:' + safeStorage.encryptString(token).toString('base64');
-  }
-  return 'raw:' + token;
+  if (!token || !safeStorage.isEncryptionAvailable()) return undefined;
+  return 'enc:' + safeStorage.encryptString(token).toString('base64');
 }
 
 function decryptToken(value) {
@@ -86,6 +100,56 @@ function decryptToken(value) {
   }
   return null;
 }
+
+function loadAuth() {
+  const token = decryptToken(store.token);
+  const base = store.tokenBase || store.server?.url || null; // 1.3.0 saved no tokenBase
+  const origin = base && originOf(base);
+  if (!token || !origin) {
+    auth = { origin: null, base: null, token: null };
+    return;
+  }
+  auth = { origin, base, token };
+  // Older versions fell back to a plain-text "raw:" token. Re-save it encrypted, or drop it from disk.
+  if (store.token.startsWith('raw:') || !store.tokenBase) saveAuth();
+}
+
+function saveAuth() {
+  const enc = encryptToken(auth.token);
+  tokenSaved = !auth.token || !!enc;
+  store.token = enc;
+  store.tokenBase = auth.token ? auth.base : undefined;
+  scheduleSave();
+}
+
+function authHeader(token) {
+  const deviceId = typeof store.deviceId === 'string' ? store.deviceId : '';
+  const parts = [`Client="${CLIENT_NAME}"`, `Device="${DEVICE_NAME}"`, `DeviceId="${deviceId}"`, `Version="${app.getVersion()}"`];
+  if (token) parts.push(`Token="${token}"`);
+  return 'MediaBrowser ' + parts.join(', ');
+}
+
+async function jellyfin(base, route, { method = 'GET', body, token, timeout = 8000 } = {}) {
+  const res = await net.fetch(base + route, {
+    method,
+    headers: {
+      Authorization: authHeader(token),
+      Accept: 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(timeout),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    const err = new Error(`${res.status} ${res.statusText}`);
+    err.status = res.status;
+    throw err;
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+const describe = (err) => (err?.name === 'TimeoutError' ? 'Request timed out' : String(err?.message || err));
 
 function debounce(fn, ms) {
   let t;
@@ -119,7 +183,7 @@ function createWindow() {
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#0b0d12', symbolColor: '#e6e8ef', height: 40 },
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'generated', 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -130,7 +194,7 @@ function createWindow() {
 
   if (saved.maximized) win.maximize();
   win.once('ready-to-show', () => win.show());
-  win.loadURL('app://nova/index.html');
+  win.loadURL(`${APP_ORIGIN}/index.html`);
 
   const saveBounds = () => {
     if (!win || win.isDestroyed()) return;
@@ -176,16 +240,35 @@ function registerProtocol() {
   });
 }
 
-// Some reverse proxies strip CORS headers from Jellyfin. Re-add them so the
-// app works no matter how the server is exposed.
-function installCorsShim() {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    if (!/^https?:/i.test(details.url)) return callback({});
+// Only the signed-in server, or the one being probed during sign-in, is touched.
+function isJellyfin(url) {
+  const o = originOf(url);
+  return !!o && (o === auth.origin || o === pendingOrigin);
+}
+
+function installNetworkHooks() {
+  const { webRequest } = session.defaultSession;
+
+  // The token rides in a header, never in a URL (Jellyfin 10.11 also rejects api_key).
+  webRequest.onBeforeSendHeaders((details, callback) => {
+    if (!auth.token || originOf(details.url) !== auth.origin) return callback({});
+    const requestHeaders = {};
+    for (const [k, v] of Object.entries(details.requestHeaders)) {
+      if (!/^(authorization|x-emby-authorization|x-emby-token|x-mediabrowser-token)$/i.test(k)) requestHeaders[k] = v;
+    }
+    requestHeaders.Authorization = authHeader(auth.token);
+    callback({ requestHeaders });
+  });
+
+  // Some reverse proxies strip CORS headers from Jellyfin. Re-add them so the
+  // app works no matter how the server is exposed.
+  webRequest.onHeadersReceived((details, callback) => {
+    if (!isJellyfin(details.url)) return callback({});
     const headers = {};
     for (const [k, v] of Object.entries(details.responseHeaders || {})) {
       if (!/^access-control-/i.test(k)) headers[k] = v;
     }
-    headers['Access-Control-Allow-Origin'] = ['app://nova'];
+    headers['Access-Control-Allow-Origin'] = [APP_ORIGIN];
     headers['Access-Control-Allow-Headers'] = ['Authorization, Content-Type, Accept, Range, X-Emby-Authorization, X-Emby-Token, X-MediaBrowser-Token'];
     headers['Access-Control-Allow-Methods'] = ['GET, POST, PUT, DELETE, OPTIONS, HEAD'];
     headers['Access-Control-Expose-Headers'] = ['Content-Length, Content-Range, Content-Type'];
@@ -195,25 +278,116 @@ function installCorsShim() {
   });
 }
 
+// Every handler goes through the contract: the sender must be our own page
+// and each argument must pass its check, or the call is dropped.
+function fromApp(event) {
+  return !!win && event.sender === win.webContents && !!event.senderFrame?.url?.startsWith(APP_ORIGIN + '/');
+}
+
+function argsOk(def, args) {
+  return args.length <= def.args.length && def.args.every((check, i) => check(args[i]));
+}
+
+const registered = new Set();
+
+function handle(channel, fn) {
+  const def = CHANNELS[channel];
+  if (!def || def.kind === 'event') throw new Error(`Unknown IPC channel ${channel}`);
+  registered.add(channel);
+  if (def.kind === 'invoke') {
+    ipcMain.handle(channel, (event, ...args) => {
+      if (!fromApp(event) || !argsOk(def, args)) throw new Error(`Rejected ${channel}`);
+      return fn(event, ...args);
+    });
+  } else {
+    ipcMain.on(channel, (event, ...args) => {
+      if (fromApp(event) && argsOk(def, args)) fn(event, ...args);
+    });
+  }
+}
+
 function registerIpc() {
-  ipcMain.handle('store:get', () => {
-    const { token, window: _w, ...rest } = store;
-    return { ...rest, token: decryptToken(token) };
+  handle('store:get', () => {
+    const { token: _t, tokenBase: _b, window: _w, ...rest } = store;
+    let serverInsecure = false;
+    try {
+      const u = new URL(store.server?.url);
+      serverInsecure = u.protocol === 'http:' && !isPrivateHost(u.hostname);
+    } catch {
+      // no server yet
+    }
+    return { ...rest, signedIn: !!auth.token, tokenSaved, serverInsecure };
   });
 
-  ipcMain.on('store:set', (_e, key, value) => {
-    if (typeof key !== 'string' || key === 'token' || key === 'window') return;
+  handle('store:set', (_e, key, value) => {
+    if (!validStoreWrite(key, value)) return;
+    const had = Object.prototype.hasOwnProperty.call(store, key);
+    const prev = store[key];
     if (value === undefined || value === null) delete store[key];
     else store[key] = value;
+    if (JSON.stringify(store).length > MAX_STORE_BYTES) {
+      if (had) store[key] = prev;
+      else delete store[key];
+      console.error(`Store write for ${key} refused: store is full`);
+      return;
+    }
     scheduleSave();
   });
 
-  ipcMain.on('store:token', (_e, token) => {
-    store.token = token ? encryptToken(token) : undefined;
-    scheduleSave();
+  // ---- sign-in (the token never reaches the page)
+
+  handle('server:find', async (_e, input) => {
+    const candidates = serverCandidates(input);
+    if (!candidates.length) return { error: 'Enter your server address' };
+    let lastErr = null;
+    for (const base of candidates) {
+      try {
+        const info = await jellyfin(base, '/System/Info/Public', { timeout: 6000 });
+        if (info?.Id) {
+          pendingOrigin = originOf(base);
+          return {
+            base,
+            info: { Id: info.Id, ServerName: info.ServerName, Version: info.Version },
+            encrypted: isEncrypted(base),
+            privateHost: isPrivateHost(new URL(base).hostname),
+          };
+        }
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    return { error: `Couldn't find a Jellyfin server at "${input.trim()}". ${lastErr ? describe(lastErr) : ''}`.trim() };
   });
 
-  ipcMain.on('power:block', (_e, on) => {
+  handle('auth:signIn', async (_e, req) => {
+    const base = req.base.replace(/\/+$/, '');
+    const origin = originOf(base);
+    if (!origin || (origin !== pendingOrigin && origin !== auth.origin)) return { ok: false, message: 'Connect to the server first.' };
+    try {
+      const res = req.secret !== undefined
+        ? await jellyfin(base, '/Users/AuthenticateWithQuickConnect', { method: 'POST', body: { Secret: req.secret }, timeout: 20000 })
+        : await jellyfin(base, '/Users/AuthenticateByName', { method: 'POST', body: { Username: req.username, Pw: req.password }, timeout: 20000 });
+      if (!res?.AccessToken || !res.User?.Id) return { ok: false, message: 'The server sent an unexpected reply.' };
+      auth = { origin, base, token: res.AccessToken };
+      pendingOrigin = null;
+      saveAuth();
+      const { Id, Name, PrimaryImageTag } = res.User;
+      return { ok: true, user: { Id, Name, PrimaryImageTag }, tokenSaved };
+    } catch (err) {
+      return { ok: false, status: err.status, message: describe(err) };
+    }
+  });
+
+  handle('auth:signOut', async () => {
+    if (auth.token) await jellyfin(auth.base, '/Sessions/Logout', { method: 'POST', token: auth.token, timeout: 4000 }).catch(() => {});
+    auth = { origin: null, base: null, token: null };
+    saveAuth();
+    return true;
+  });
+
+  // ---- window and system
+
+  handle('power:block', (_e, on) => {
     if (on && powerBlockId === null) {
       powerBlockId = powerSaveBlocker.start('prevent-display-sleep');
     } else if (!on && powerBlockId !== null) {
@@ -222,13 +396,13 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('win:fullscreen', (_e, value) => {
+  handle('win:fullscreen', (_e, value) => {
     if (!win) return false;
     win.setFullScreen(typeof value === 'boolean' ? value : !win.isFullScreen());
     return win.isFullScreen();
   });
 
-  ipcMain.on('win:overlay', (_e, dark) => {
+  handle('win:overlay', (_e, dark) => {
     if (!win || win.isDestroyed()) return;
     try {
       win.setTitleBarOverlay(dark
@@ -239,12 +413,12 @@ function registerIpc() {
     }
   });
 
-  ipcMain.on('open-external', (_e, url) => {
-    if (typeof url === 'string' && /^https?:\/\//i.test(url)) shell.openExternal(url);
+  handle('open-external', (_e, url) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
   });
 
   // Screenshots go to Pictures\Nova Player.
-  ipcMain.handle('screenshot:save', async (_e, bytes, name) => {
+  handle('screenshot:save', async (_e, bytes, name) => {
     const dir = path.join(app.getPath('pictures'), 'Nova Player');
     await fs.promises.mkdir(dir, { recursive: true });
     const safe = String(name || 'screenshot').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 150) || 'screenshot';
@@ -253,12 +427,12 @@ function registerIpc() {
     await fs.promises.writeFile(file, Buffer.from(bytes));
     return file;
   });
-  ipcMain.on('shell:show', (_e, file) => {
-    if (typeof file === 'string' && file.startsWith(path.join(app.getPath('pictures'), 'Nova Player'))) shell.showItemInFolder(file);
+  handle('shell:show', (_e, file) => {
+    if (file.startsWith(path.join(app.getPath('pictures'), 'Nova Player'))) shell.showItemInFolder(file);
   });
 
   // Mini player: small always-on-top 16:9 window in the corner of the screen.
-  ipcMain.handle('win:mini', (_e, on) => {
+  handle('win:mini', (_e, on) => {
     if (!win) return false;
     if (on && !miniRestore) {
       miniRestore = { bounds: win.getBounds(), maximized: win.isMaximized() };
@@ -283,16 +457,19 @@ function registerIpc() {
     return !!miniRestore;
   });
 
-  ipcMain.handle('app:info', () => ({
+  handle('app:info', () => ({
     version: app.getVersion(),
     homepage: require('../../package.json').homepage,
   }));
-  ipcMain.handle('update:state', () => updateState);
-  ipcMain.handle('update:check', () => checkForUpdates(true));
-  ipcMain.on('update:install', () => {
+  handle('update:state', () => updateState);
+  handle('update:check', () => checkForUpdates(true));
+  handle('update:install', () => {
     // Silent install (no setup wizard), then relaunch Nova.
     if (updateState.state === 'ready') autoUpdater?.quitAndInstall(true, true);
   });
+
+  const missing = Object.keys(CHANNELS).filter((ch) => CHANNELS[ch].kind !== 'event' && !registered.has(ch));
+  if (missing.length) throw new Error(`IPC channels without a handler: ${missing.join(', ')}`);
 }
 
 // ---------------------------------------------------------------- auto-update
@@ -361,8 +538,9 @@ app.on('second-instance', () => {
 
 app.whenReady().then(() => {
   loadStore();
+  loadAuth();
   registerProtocol();
-  installCorsShim();
+  installNetworkHooks();
   registerIpc();
   createWindow();
   setupUpdater();
