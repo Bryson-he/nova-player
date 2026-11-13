@@ -4,7 +4,7 @@ import { h, icon, iconBtn, toast, popupMenu, initTooltips } from './ui.js';
 import { applyAppearance } from './appearance.js';
 import './diagnostics.js';
 import { initRouter, navigate, back, forward, canGoBack, canGoForward, onRouteChange, resetRouter, current } from './router.js';
-import { isPlayerOpen, closePlayer, closePlayerAndReport } from './player.js';
+import { isPlayerOpen, closePlayer, closePlayerAndReport, openPlayer } from './player.js';
 import { loginView } from './views/login.js';
 import { homeView } from './views/home.js';
 import { libraryView } from './views/library.js';
@@ -23,6 +23,11 @@ let signingOut = false;
 api.onUnauthorized = () => {
   if (!signingOut) signOut('Your session expired or was signed out on the server. Please sign in again.');
 };
+
+// Jump list "Continue watching" entries start playback.
+window.nova.onPlayRequest((id) => {
+  if (store.signedIn) openPlayer(id);
+});
 
 // The window is closing: report playback stopped first (main waits up to 1.5 s).
 window.nova.onBeforeClose(async () => {

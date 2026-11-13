@@ -10,6 +10,7 @@ const {
   isInside, originOf, isPrivateHost, isEncrypted, serverCandidates, safeFileName, validStoreWrite, MAX_STORE_BYTES, buildCsp,
 } = require('./security');
 const { CHANNELS } = require('./ipc-contract');
+const { setTaskbarState, setContinueWatching, playArg } = require('./taskbar');
 
 // NOVA_PROFILE runs a separate, isolated profile (handy for testing a second server).
 if (process.env.NOVA_PROFILE) {
@@ -606,6 +607,8 @@ function registerIpc() {
     mica: useMica(),
   }));
   handle('app:close-ready', () => closeWaiter?.());
+  handle('taskbar:state', (_e, state) => setTaskbarState(win, state));
+  handle('taskbar:jumplist', (_e, items) => setContinueWatching(items));
   handle('update:state', () => updateState);
   handle('update:check', () => checkForUpdates(true));
   handle('update:install', () => {
@@ -676,10 +679,14 @@ async function checkForUpdates(manual) {
   return updateState;
 }
 
-app.on('second-instance', () => {
+// A second launch (including from the jump list) focuses this window, and
+// plays the item if it came with --nova-play.
+app.on('second-instance', (_e, argv) => {
   if (win) {
     if (win.isMinimized()) win.restore();
     win.focus();
+    const id = playArg(argv);
+    if (id) win.webContents.send('app:play', id);
   }
 });
 
@@ -700,6 +707,8 @@ app.whenReady().then(async () => {
   installPermissionHandlers();
   registerIpc();
   createWindow();
+  const firstPlay = playArg(process.argv);
+  if (firstPlay) win.webContents.once('did-finish-load', () => setTimeout(() => win.webContents.send('app:play', firstPlay), 1500));
   setupUpdater();
 });
 

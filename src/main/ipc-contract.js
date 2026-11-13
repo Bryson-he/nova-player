@@ -14,6 +14,12 @@
 /** @type {(max: number) => Check} */ const str = (max) => (v) => typeof v === 'string' && v.length <= max;
 /** @type {Check} */ const any = () => true;
 /** @type {Check} */ const zoom = (v) => typeof v === 'number' && v >= 0.5 && v <= 2;
+const ITEM_ID = /^[0-9a-f]{32}$/i;
+/** @type {Check} */ const taskbarState = (v) => v === null || (!!v && typeof v === 'object'
+  && typeof (/** @type {any} */ (v)).playing === 'boolean'
+  && typeof (/** @type {any} */ (v)).progress === 'number');
+/** @type {Check} */ const jumpList = (v) => Array.isArray(v) && v.length <= 10
+  && v.every((i) => i && typeof i.id === 'string' && ITEM_ID.test(i.id) && typeof i.title === 'string' && i.title.length <= 200);
 /** @type {Check} */ const bytes = (v) => v instanceof ArrayBuffer || ArrayBuffer.isView(v);
 /** @type {Check} */ const signIn = (v) => {
   if (!v || typeof v !== 'object') return false;
@@ -46,6 +52,8 @@ const CHANNELS = {
   'win:mini': { kind: 'invoke', expose: 'setMini', args: [bool], coerce: [Boolean] },
   'win:zoom': { kind: 'send', expose: 'setZoom', args: [zoom], coerce: [Number] },
   'app:accent': { kind: 'invoke', expose: 'accentColor', args: [] },
+  'taskbar:state': { kind: 'send', expose: 'taskbar', args: [taskbarState] },
+  'taskbar:jumplist': { kind: 'send', expose: 'setJumpList', args: [jumpList] },
   'open-external': { kind: 'send', expose: 'openExternal', args: [str(4096)] },
   'screenshot:save': { kind: 'invoke', expose: 'saveScreenshot', args: [bytes, str(1024)] },
   'shell:show': { kind: 'send', expose: 'showInFolder', args: [str(4096)] },
@@ -59,6 +67,8 @@ const CHANNELS = {
   fullscreen: { kind: 'event', expose: 'onFullscreen' },
   update: { kind: 'event', expose: 'onUpdate' },
   'app:before-close': { kind: 'event', expose: 'onBeforeClose' },
+  'taskbar:action': { kind: 'event', expose: 'onTaskbarAction' },
+  'app:play': { kind: 'event', expose: 'onPlayRequest' },
 };
 
 module.exports = { CHANNELS };

@@ -9,6 +9,7 @@ import { api, TICKS } from './api.js';
 import { store } from './store.js';
 import {
   h, fill, icon, iconBtn, popupMenu, closeMenu, isMenuOpen, toast, formatTime, endsAt, epLabel, landscapeUrl, posterUrl,
+  copyText,
 } from './ui.js';
 import { buildDeviceProfile } from './profile.js';
 import {
@@ -18,6 +19,16 @@ import {
 import { parseVtt, SubtitleRenderer } from './subtitles.js';
 import { refreshCurrent } from './router.js';
 import { applySubtitleStyle } from './views/settings.js';
+import { showShortcuts } from './shortcuts.js';
+
+// "14 minutes of 1 hour 30" for the seek slider's screen reader text.
+function spokenTime(sec) {
+  const m = Math.floor((sec || 0) / 60);
+  const hrs = Math.floor(m / 60);
+  const mins = m % 60;
+  if (!hrs) return `${mins} minute${mins === 1 ? '' : 's'}`;
+  return `${hrs} hour${hrs === 1 ? '' : 's'}${mins ? ` ${mins}` : ''}`;
+}
 
 let active = null;
 let fsState = false;
@@ -25,6 +36,14 @@ let fsState = false;
 window.nova.onFullscreen((value) => {
   fsState = value;
   active?.onFullscreenChange(value);
+});
+
+// Taskbar thumbnail buttons control whatever is playing.
+window.nova.onTaskbarAction((action) => {
+  if (!active) return;
+  if (action === 'toggle') active.togglePlay();
+  else if (action === 'prev') active.playAdjacent(-1);
+  else if (action === 'next') active.playAdjacent(1);
 });
 
 export function openPlayer(id, opts = {}) {
@@ -198,7 +217,7 @@ class Player {
     this.tipThumb = h('div', { class: 'seek-thumb hidden' });
     this.tipTime = h('div', { class: 'seek-time' });
     this.hoverTip = h('div', { class: 'seek-tip hidden' }, this.tipThumb, this.tipChapter, this.tipTime);
-    this.seekEl = h('div', { class: 'seek' },
+    this.seekEl = h('div', { class: 'seek', role: 'slider', tabindex: 0, 'aria-label': 'Seek', 'aria-valuemin': 0, 'aria-valuemax': 0, 'aria-valuenow': 0 },
       h('div', { class: 'seek-track' }, this.bufEl, this.segLayer, this.progEl, this.chapLayer),
       this.knob,
       this.hoverTip);
@@ -209,12 +228,13 @@ class Player {
     const rewBtn = iconBtn('replay', 'Rewind (←)', () => this.seekBy(-store.setting('seekBack')), 'p-btn');
     const fwdBtn = iconBtn('forward', 'Fast forward (→)', () => this.seekBy(store.setting('seekForward')), 'p-btn');
     this.muteBtn = iconBtn(v.muted ? 'mute' : 'volume', 'Mute (M)', () => this.toggleMute(), 'p-btn');
-    this.volSlider = h('input', { type: 'range', min: 0, max: 1, step: 0.01, class: 'vol-slider', value: v.muted ? 0 : v.volume });
+    this.volSlider = h('input', { type: 'range', min: 0, max: 1, step: 0.01, class: 'vol-slider', value: v.muted ? 0 : v.volume, 'aria-label': 'Volume' });
     this.timeEl = h('div', { class: 'p-time' }, '0:00 / 0:00');
     this.endsEl = h('div', { class: 'p-ends' });
-    this.audioBtn = iconBtn('audio', 'Audio track (A)', (e) => this.audioMenu(e.currentTarget), 'p-btn');
-    this.subBtn = iconBtn('subtitles', 'Subtitles (S)', (e) => this.subMenu(e.currentTarget), 'p-btn');
-    const setBtn = iconBtn('settings', 'Speed, quality, sound & chapters', (e) => this.settingsMenu(e.currentTarget), 'p-btn');
+    this.tracksBtn = iconBtn('subtitles', 'Audio and subtitles (A, S)', (e) => this.tracksMenu(e.currentTarget), 'p-btn');
+    this.tracksBtn.setAttribute('aria-haspopup', 'menu');
+    const setBtn = iconBtn('settings', 'Playback settings', (e) => this.settingsMenu(e.currentTarget), 'p-btn');
+    setBtn.setAttribute('aria-haspopup', 'menu');
     this.infoBtn = iconBtn('info', 'Playback info (I)', () => this.toggleInfo(), 'p-btn');
     const pipBtn = iconBtn('pip', 'Mini player, always on top (T)', () => this.setMini(!this.mini), 'p-btn');
     this.fsBtn = iconBtn(fsState ? 'fullscreenExit' : 'fullscreen', 'Fullscreen (F)', () => this.toggleFullscreen(), 'p-btn');
@@ -227,13 +247,14 @@ class Player {
           h('div', { class: 'vol' }, this.muteBtn, this.volSlider),
           this.timeEl),
         h('div', { class: 'p-right' },
-          this.endsEl, this.audioBtn, this.subBtn, setBtn, this.infoBtn, pipBtn, this.fsBtn)));
+          this.endsEl, this.tracksBtn, setBtn, this.infoBtn, pipBtn, this.fsBtn)));
 
     this.controls = h('div', { class: 'p-controls' }, top, this.bottom);
     this.el = h('div', { class: `player show-controls${fsState ? ' fs' : ''}` },
       v, this.subLayer, this.sub2Layer, this.controls, this.skipBtn, this.upNextEl, this.infoEl, this.osdEl, this.loadingEl, this.errorEl);
     document.body.append(this.el);
     window.nova.setDarkOverlay(true);
+    this.setFit(store.setting('videoFit'), false);
     this.updateEpButtons();
   }
 
@@ -366,6 +387,8 @@ class Player {
 
   handleKey(e) {
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range') return;
+    // A dialog (shortcuts, an error) has the keyboard while it's open.
+    if (document.querySelector('.modal-backdrop')) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
       this.screenshot();
@@ -376,6 +399,8 @@ class Player {
     let handled = true;
     switch (k) {
       case 't': case 'T': this.setMini(!this.mini); break;
+      case 'v': case 'V': this.cycleFit(); break;
+      case '?': showShortcuts(this.el); break;
       case 'PageUp': this.jumpChapter(-1); break;
       case 'PageDown': this.jumpChapter(1); break;
       case ' ': case 'k': case 'K': case 'MediaPlayPause': this.togglePlay(); break;
@@ -720,10 +745,16 @@ class Player {
       this.reload({ forceTranscode: true, message: 'Switching to transcoding…' });
       return;
     }
-    this.fail(`Playback failed: ${err.message || 'media error ' + err.code}`);
+    const cause = {
+      1: 'Playback was stopped before the video loaded.',
+      2: 'The connection to your server dropped while loading the video.',
+      3: "This PC couldn't decode the video. Transcoding usually fixes it.",
+      4: "This video's format can't play here. Transcoding usually fixes it.",
+    }[err.code] || 'The video stopped with an error.';
+    this.fail(cause, `${err.message || ''} (media error ${err.code})`);
   }
 
-  fail(message) {
+  fail(message, details = '') {
     this.setLoading(false);
     clearTimeout(this.stall1);
     clearTimeout(this.stall2);
@@ -733,13 +764,17 @@ class Player {
       this.forcedTranscode = force;
       this.reload({ forceTranscode: force });
     };
-    fill(this.errorEl, 
+    const info = [message, details, `Method: ${this.method || 'none'}`, `Item: ${this.item?.Id || '?'}`, `Container: ${this.ms?.Container || '?'}`].filter(Boolean).join('\n');
+    this.errorEl.setAttribute('role', 'alertdialog');
+    fill(this.errorEl,
       h('div', { class: 'error-title' }, "Couldn't play this video"),
       h('div', { class: 'error-msg' }, message),
       h('div', { class: 'error-actions' },
         h('button', { class: 'btn btn-primary', onclick: () => retry(this.forcedTranscode) }, 'Retry'),
         this.forcedTranscode ? null : h('button', { class: 'btn btn-secondary', onclick: () => retry(true) }, 'Retry with transcoding'),
-        h('button', { class: 'btn btn-secondary', onclick: () => this.destroy() }, 'Close')));
+        h('button', { class: 'btn btn-secondary', onclick: () => copyText(info, 'Details copied') }, 'Copy details'),
+        h('button', { class: 'btn btn-quiet', onclick: () => this.destroy() }, 'Close')));
+    requestAnimationFrame(() => this.errorEl.querySelector('.btn-primary')?.focus());
     this.errorEl.classList.remove('hidden');
     this.showControls();
   }
@@ -980,14 +1015,51 @@ class Player {
 
   // ---------------------------------------------------------------- track switching
 
-  audioMenu(anchor) {
-    const streams = audioStreams(this.ms);
-    if (!streams.length) return this.osd('No audio tracks');
-    popupMenu(anchor, streams.map((s) => ({
-      label: streamLabel(s),
-      checked: s.Index === this.audioIndex,
-      onClick: () => this.setAudio(s.Index),
-    })), { title: 'Audio' });
+  // One menu for audio and subtitles (the A and S keys still cycle each).
+  tracksMenu(anchor) {
+    const audios = audioStreams(this.ms);
+    const subs = subStreams(this.ms);
+    const delayVal = h('span', { class: 'delay-val' }, `${this.subDelay.toFixed(1)}s`);
+    const bump = (d) => (e) => {
+      e.stopPropagation();
+      const val = d === 0 ? this.setSubDelay(0) : this.adjustSubDelay(d);
+      delayVal.textContent = `${val.toFixed(1)}s`;
+    };
+    const textSubs = subs.filter((s) => isTextSub(s));
+    const delayRow = h('div', { class: 'menu-row' },
+      h('span', { class: 'menu-row-label' }, 'Subtitle sync'),
+      h('button', { class: 'mini-btn', title: 'Show earlier (Z)', 'aria-label': 'Show subtitles earlier', onclick: bump(-0.1) }, '−'),
+      delayVal,
+      h('button', { class: 'mini-btn', title: 'Show later (X)', 'aria-label': 'Show subtitles later', onclick: bump(0.1) }, '+'),
+      h('button', { class: 'mini-btn', onclick: bump(0) }, 'Reset'));
+    popupMenu(anchor, [
+      { header: 'Audio' },
+      ...(audios.length ? audios.map((s) => ({
+        label: streamLabel(s), checked: s.Index === this.audioIndex, key: 'A', onClick: () => this.setAudio(s.Index),
+      })) : [{ label: 'No audio tracks', disabled: true }]),
+      { divider: true },
+      { header: 'Subtitles' },
+      { label: 'Off', checked: this.subIndex === -1, onClick: () => this.setSubtitle(-1) },
+      ...subs.map((s) => ({
+        label: streamLabel(s),
+        sub: !isTextSub(s) ? 'Image subtitle · the server burns it in'
+          : isAssSub(s) && store.setting('styledSubs') ? 'Styled: fonts and positions kept' : '',
+        checked: s.Index === this.subIndex,
+        onClick: () => this.setSubtitle(s.Index),
+      })),
+      { el: delayRow },
+      ...(textSubs.length >= 2 ? [
+        { divider: true },
+        { header: 'Second subtitle (top of the picture)' },
+        { label: 'Off', checked: this.sub2Index === -1, onClick: () => this.setSecondarySubtitle(-1) },
+        ...textSubs.map((s) => ({
+          label: streamLabel(s),
+          checked: s.Index === this.sub2Index,
+          disabled: s.Index === this.subIndex,
+          onClick: () => this.setSecondarySubtitle(s.Index),
+        })),
+      ] : []),
+    ]);
   }
 
   setAudio(index) {
@@ -1010,45 +1082,6 @@ class Player {
     if (list.length < 2) return this.osd('Only one audio track');
     const i = list.findIndex((s) => s.Index === this.audioIndex);
     this.setAudio(list[(i + 1) % list.length].Index);
-  }
-
-  subMenu(anchor) {
-    const subs = subStreams(this.ms);
-    const delayVal = h('span', { class: 'delay-val' }, `${this.subDelay.toFixed(1)}s`);
-    const bump = (d) => (e) => {
-      e.stopPropagation();
-      const val = d === 0 ? this.setSubDelay(0) : this.adjustSubDelay(d);
-      delayVal.textContent = `${val.toFixed(1)}s`;
-    };
-    const textSubs = subs.filter((s) => isTextSub(s));
-    const delayRow = h('div', { class: 'menu-row' },
-      h('span', { class: 'menu-row-label' }, 'Sync'),
-      h('button', { class: 'mini-btn', title: 'Show earlier (Z)', onclick: bump(-0.1) }, '−'),
-      delayVal,
-      h('button', { class: 'mini-btn', title: 'Show later (X)', onclick: bump(0.1) }, '+'),
-      h('button', { class: 'mini-btn', onclick: bump(0) }, 'Reset'));
-    popupMenu(anchor, [
-      { label: 'Off', checked: this.subIndex === -1, onClick: () => this.setSubtitle(-1) },
-      ...subs.map((s) => ({
-        label: streamLabel(s),
-        sub: !isTextSub(s) ? 'Image subtitle · server burns it in'
-          : isAssSub(s) && store.setting('styledSubs') ? 'Styled (fonts & positioning kept)' : '',
-        checked: s.Index === this.subIndex,
-        onClick: () => this.setSubtitle(s.Index),
-      })),
-      { divider: true },
-      { el: delayRow },
-      ...(textSubs.length >= 2 ? [
-        { header: 'Second subtitle (top of screen)' },
-        { label: 'Off', checked: this.sub2Index === -1, onClick: () => this.setSecondarySubtitle(-1) },
-        ...textSubs.map((s) => ({
-          label: streamLabel(s),
-          checked: s.Index === this.sub2Index,
-          disabled: s.Index === this.subIndex,
-          onClick: () => this.setSecondarySubtitle(s.Index),
-        })),
-      ] : []),
-    ], { title: 'Subtitles' });
   }
 
   setSecondarySubtitle(index) {
@@ -1085,8 +1118,23 @@ class Player {
   }
 
   updateTrackButtons() {
-    this.subBtn.classList.toggle('on', this.subIndex >= 0);
-    this.audioBtn.classList.toggle('dim', audioStreams(this.ms).length < 2);
+    this.tracksBtn.classList.toggle('on', this.subIndex >= 0);
+  }
+
+  // Video fit: fit (letterbox), fill (crop), stretch, zoom. V cycles.
+  setFit(mode, announce = true) {
+    const modes = ['fit', 'fill', 'stretch', 'zoom'];
+    const fit = modes.includes(mode) ? mode : 'fit';
+    for (const m of modes) this.el.classList.toggle(`fit-${m}`, m === fit && m !== 'fit');
+    this.fit = fit;
+    if (announce) this.osd(`Video: ${{ fit: 'Fit', fill: 'Fill', stretch: 'Stretch', zoom: 'Zoom' }[fit]}`);
+  }
+
+  cycleFit() {
+    const modes = ['fit', 'fill', 'stretch', 'zoom'];
+    const next = modes[(modes.indexOf(this.fit || 'fit') + 1) % modes.length];
+    this.setFit(next);
+    store.setSetting('videoFit', next);
   }
 
   // ---------------------------------------------------------------- speed / quality / info
@@ -1436,7 +1484,14 @@ class Player {
     this.progEl.style.width = `${p * 100}%`;
     this.knob.style.left = `${p * 100}%`;
     this.timeEl.textContent = `${formatTime(t)} / ${formatTime(dur)}`;
+    this.seekEl.setAttribute('aria-valuemax', String(Math.round(dur || 0)));
+    this.seekEl.setAttribute('aria-valuenow', String(Math.round(t)));
+    this.seekEl.setAttribute('aria-valuetext', `${spokenTime(t)} of ${spokenTime(dur)}`);
     this.endsEl.textContent = dur ? `Ends at ${endsAt((dur - t) / (v.playbackRate || 1))}` : '';
+    if (performance.now() - (this.lastTaskbar || 0) > 1000) {
+      this.lastTaskbar = performance.now();
+      this.updateTaskbar();
+    }
     this.updateBuffer();
   }
 
@@ -1523,7 +1578,7 @@ class Player {
     let remaining = store.setting('nextUpCountdown');
     const img = landscapeUrl(ep, 400);
     const countEl = h('span', { class: 'countdown' }, auto ? `${remaining}` : '');
-    fill(this.upNextEl, 
+    fill(this.upNextEl,
       img ? h('img', { src: img, alt: '' }) : null,
       h('div', { class: 'upnext-body' },
         h('div', { class: 'eyebrow' }, 'Up next'),
@@ -1536,7 +1591,7 @@ class Player {
     clearInterval(this.countdownTimer);
     if (auto) {
       this.countdownTimer = setInterval(() => {
-        if (this.video.paused) return;
+        if (this.video.paused || this.upNextEl.matches(':hover, :focus-within')) return;
         remaining--;
         countEl.textContent = `${Math.max(0, remaining)}`;
         if (remaining <= 0) {
@@ -1602,6 +1657,19 @@ class Player {
     this.nextBtn.title = this.queue ? 'Next (N)' : 'Next episode (N)';
     this.prevBtn.disabled = !this.prevEp;
     this.nextBtn.disabled = !this.nextEp;
+    this.updateTaskbar();
+  }
+
+  // Taskbar progress and thumbnail buttons.
+  updateTaskbar() {
+    if (this.destroyed) return;
+    const dur = this.duration();
+    window.nova.taskbar({
+      playing: !this.video.paused,
+      progress: dur ? this.video.currentTime / dur : 0,
+      hasPrev: !!this.prevEp,
+      hasNext: !!this.nextEp,
+    });
   }
 
   // ---------------------------------------------------------------- reporting
@@ -1649,6 +1717,7 @@ class Player {
 
   updatePlayState() {
     const paused = this.video.paused;
+    this.updateTaskbar();
     this.playBtn.replaceChildren(icon(paused ? 'play' : 'pause'));
     this.el.classList.toggle('paused', paused);
     window.nova.keepAwake(!paused);
@@ -1691,6 +1760,7 @@ class Player {
     this.assInstance?.destroy().catch(() => {});
     window.nova.keepAwake(false);
     window.nova.setDarkOverlay(false);
+    window.nova.taskbar(null);
     if (navigator.mediaSession) {
       navigator.mediaSession.metadata = null;
       for (const a of ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack', 'stop']) {

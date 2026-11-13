@@ -87,6 +87,11 @@ export function homeView() {
       if (viewsR.status === 'rejected' && resumeR.status === 'rejected') throw viewsR.reason;
 
       const resume = resumeR.value?.Items || [];
+      // The taskbar jump list mirrors Continue watching.
+      window.nova.setJumpList(resume.slice(0, 8).map((i) => ({
+        id: i.Id,
+        title: i.Type === 'Episode' ? `${i.SeriesName} · ${epLabel(i)}` : i.Name,
+      })));
       const nextUp = (nextUpR.value?.Items || []).filter((n) => !resume.some((r) => r.Id === n.Id));
       const frag = [];
       const heroItems = [...resume, ...nextUp].filter((i) => backdropUrl(i)).slice(0, 5);

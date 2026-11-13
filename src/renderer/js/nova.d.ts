@@ -41,6 +41,10 @@ interface NovaBridge {
   onFullscreen(cb: (value: boolean) => void): () => void;
   onUpdate(cb: (state: Record<string, unknown>) => void): () => void;
   onBeforeClose(cb: () => void): () => void;
+  onTaskbarAction(cb: (action: 'prev' | 'toggle' | 'next') => void): () => void;
+  onPlayRequest(cb: (itemId: string) => void): () => void;
+  taskbar(state: { playing: boolean; progress: number; hasPrev?: boolean; hasNext?: boolean } | null): void;
+  setJumpList(items: { id: string; title: string }[]): void;
 }
 
 interface Window {
