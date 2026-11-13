@@ -2,7 +2,7 @@ import { initStore, store } from './store.js';
 import { api } from './api.js';
 import { h, icon, iconBtn, toast } from './ui.js';
 import { initRouter, navigate, back, canGoBack, onRouteChange, resetRouter, current } from './router.js';
-import { isPlayerOpen, closePlayer } from './player.js';
+import { isPlayerOpen, closePlayer, closePlayerAndReport } from './player.js';
 import { loginView } from './views/login.js';
 import { homeView } from './views/home.js';
 import { libraryView } from './views/library.js';
@@ -20,6 +20,15 @@ let signingOut = false;
 api.onUnauthorized = () => {
   if (!signingOut) signOut('Your session expired or was signed out on the server. Please sign in again.');
 };
+
+// The window is closing: report playback stopped first (main waits up to 1.5 s).
+window.nova.onBeforeClose(async () => {
+  try {
+    await closePlayerAndReport();
+  } finally {
+    window.nova.closeReady();
+  }
+});
 
 async function boot() {
   await Promise.all([initStore(), initUpdates()]);

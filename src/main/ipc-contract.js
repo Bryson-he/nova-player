@@ -47,12 +47,14 @@ const CHANNELS = {
   'shell:show': { kind: 'send', expose: 'showInFolder', args: [str(4096)] },
 
   'app:info': { kind: 'invoke', expose: 'appInfo', args: [] },
+  'app:close-ready': { kind: 'send', expose: 'closeReady', args: [] },
   'update:state': { kind: 'invoke', expose: 'updateState', args: [] },
   'update:check': { kind: 'invoke', expose: 'checkForUpdates', args: [] },
   'update:install': { kind: 'send', expose: 'installUpdate', args: [] },
 
   fullscreen: { kind: 'event', expose: 'onFullscreen' },
   update: { kind: 'event', expose: 'onUpdate' },
+  'app:before-close': { kind: 'event', expose: 'onBeforeClose' },
 };
 
 module.exports = { CHANNELS };

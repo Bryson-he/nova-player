@@ -500,3 +500,6 @@ canvas.JASSUB { z-index: 1; transition: transform .25s ease; }
 .modal-body p { margin: 0 0 10px; line-height: 1.5; }
 .insecure-lock { display: inline-flex; vertical-align: -2px; margin-right: 4px; color: #ffb454; }
 .insecure-lock .icon { width: 13px; height: 13px; }
+.crash-page { max-width: 520px; margin: 18vh auto 0; padding: 0 24px; text-align: center; }
+.crash-page h1 { font: 700 24px var(--font-display); margin-bottom: 12px; }
+.crash-page p { color: var(--muted); line-height: 1.6; margin-bottom: 24px; }

@@ -1,12 +1,12 @@
 'use strict';
 const {
-  app, BrowserWindow, ipcMain, protocol, net, session, safeStorage, shell, powerSaveBlocker, screen,
+  app, BrowserWindow, ipcMain, protocol, net, session, safeStorage, shell, powerSaveBlocker, screen, Menu, dialog,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const {
-  originOf, isPrivateHost, isEncrypted, serverCandidates, validStoreWrite, MAX_STORE_BYTES, buildCsp,
+  isInside, originOf, isPrivateHost, isEncrypted, serverCandidates, safeFileName, validStoreWrite, MAX_STORE_BYTES, buildCsp,
 } = require('./security');
 const { CHANNELS } = require('./ipc-contract');
 
@@ -25,6 +25,7 @@ if (!app.requestSingleInstanceLock()) {
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.png');
 const APP_ORIGIN = 'app://nova';
+const DEBUG = !!process.env.NOVA_DEBUG;
 const CLIENT_NAME = 'Nova Player';
 const DEVICE_NAME = 'Windows PC';
 
@@ -217,25 +218,82 @@ function createWindow() {
   win.on('leave-full-screen', () => win.webContents.send('fullscreen', false));
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('app://')) e.preventDefault();
+    if (!url.startsWith(APP_ORIGIN + '/')) e.preventDefault();
   });
 
+  // Developer tools only with NOVA_DEBUG set, or in a dev checkout.
+  if (DEBUG) win.webContents.openDevTools({ mode: 'detach' });
+  else if (app.isPackaged) win.webContents.on('devtools-opened', () => win.webContents.closeDevTools());
+
+  // Reload after a crash, but no more than 3 times a minute; then show a static page.
+  const crashes = [];
   win.webContents.on('render-process-gone', (_e, details) => {
     console.error('Renderer gone', details);
-    if (details.reason !== 'clean-exit' && !win.isDestroyed()) win.reload();
+    if (details.reason === 'clean-exit' || win.isDestroyed()) return;
+    const now = Date.now();
+    while (crashes.length && now - crashes[0] > 60_000) crashes.shift();
+    crashes.push(now);
+    if (crashes.length > 3) win.loadURL(`${APP_ORIGIN}/crash.html`);
+    else win.reload();
   });
+
+  // Closing mid-playback: give the page up to 1.5 s to tell the server
+  // playback stopped (and save the position) before the window goes.
+  let closeReady = false;
+  win.on('close', (e) => {
+    if (closeReady || win.webContents.isCrashed()) return;
+    e.preventDefault();
+    if (closeWaiter) return;
+    closeWaiter = () => {
+      closeWaiter = null;
+      closeReady = true;
+      clearTimeout(timer);
+      if (!win.isDestroyed()) win.close();
+    };
+    const timer = setTimeout(() => closeWaiter?.(), 1500);
+    win.webContents.send('app:before-close');
+  });
+}
+let closeWaiter = null;
+
+// External links open in the browser: HTTPS only, and anything outside a
+// short list of well-known sites asks first, showing the host.
+const KNOWN_HOSTS = ['youtube.com', 'youtu.be', 'github.com', 'jellyfin.org', 'imdb.com', 'themoviedb.org', 'thetvdb.com', 'bryson-he.github.io'];
+
+async function openExternalSafe(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return;
+  }
+  if (u.protocol !== 'https:') return;
+  const host = u.hostname.toLowerCase();
+  const known = KNOWN_HOSTS.some((k) => host === k || host.endsWith('.' + k));
+  if (!known) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: ['Open in browser', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `Open a link to ${host}?`,
+      detail: u.href.length > 300 ? u.href.slice(0, 300) + '…' : u.href,
+    });
+    if (response !== 0) return;
+  }
+  shell.openExternal(u.href);
 }
 
 function registerProtocol() {
   protocol.handle('app', async (req) => {
     const { pathname } = new URL(req.url);
     const rel = decodeURIComponent(pathname).replace(/^\/+/, '') || 'index.html';
-    const file = path.normalize(path.join(RENDERER_DIR, rel));
-    if (!file.startsWith(RENDERER_DIR)) return new Response('Forbidden', { status: 403 });
+    const file = path.join(RENDERER_DIR, rel);
+    if (!isInside(RENDERER_DIR, file)) return new Response('Forbidden', { status: 403 });
     const res = await net.fetch(pathToFileURL(file).toString());
     if (!file.endsWith('.html')) return res;
     // The policy names the signed-in server, so it is sent per load, not baked into the file.
@@ -281,6 +339,13 @@ function installNetworkHooks() {
     if (details.method === 'OPTIONS') result.statusLine = 'HTTP/1.1 204 No Content';
     callback(result);
   });
+}
+
+// Electron's default is to grant whatever a page asks for. Nova only needs fullscreen.
+function installPermissionHandlers() {
+  const ses = session.defaultSession;
+  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'fullscreen'));
+  ses.setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
 }
 
 // Every handler goes through the contract: the sender must be our own page
@@ -418,22 +483,23 @@ function registerIpc() {
     }
   });
 
-  handle('open-external', (_e, url) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
-  });
+  handle('open-external', (_e, url) => openExternalSafe(url));
 
   // Screenshots go to Pictures\Nova Player.
+  const shotsDir = () => path.join(app.getPath('pictures'), 'Nova Player');
   handle('screenshot:save', async (_e, bytes, name) => {
-    const dir = path.join(app.getPath('pictures'), 'Nova Player');
+    if (bytes.byteLength > 50 * 1024 * 1024) throw new Error('Screenshot too large');
+    const dir = shotsDir();
     await fs.promises.mkdir(dir, { recursive: true });
-    const safe = String(name || 'screenshot').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 150) || 'screenshot';
+    const safe = safeFileName(name);
     let file = path.join(dir, `${safe}.png`);
     for (let i = 2; fs.existsSync(file); i++) file = path.join(dir, `${safe} (${i}).png`);
-    await fs.promises.writeFile(file, Buffer.from(bytes));
+    const data = ArrayBuffer.isView(bytes) ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) : Buffer.from(bytes);
+    await fs.promises.writeFile(file, data);
     return file;
   });
   handle('shell:show', (_e, file) => {
-    if (file.startsWith(path.join(app.getPath('pictures'), 'Nova Player'))) shell.showItemInFolder(file);
+    if (isInside(shotsDir(), file)) shell.showItemInFolder(file);
   });
 
   // Mini player: small always-on-top 16:9 window in the corner of the screen.
@@ -466,6 +532,7 @@ function registerIpc() {
     version: app.getVersion(),
     homepage: require('../../package.json').homepage,
   }));
+  handle('app:close-ready', () => closeWaiter?.());
   handle('update:state', () => updateState);
   handle('update:check', () => checkForUpdates(true));
   handle('update:install', () => {
@@ -542,10 +609,12 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  if (app.isPackaged && !DEBUG) Menu.setApplicationMenu(null); // no reload / devtools shortcuts
   loadStore();
   loadAuth();
   registerProtocol();
   installNetworkHooks();
+  installPermissionHandlers();
   registerIpc();
   createWindow();
   setupUpdater();
