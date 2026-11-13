@@ -33,7 +33,7 @@ export const SHORTCUTS = [
       ['S', 'Next subtitle track'],
       ['Z / X', 'Subtitles earlier or later'],
       ['[ / ]', 'Slower or faster'],
-      ['V', 'Video fit: fit, fill, stretch, zoom'],
+      ['V', 'Video fit: fit, auto crop, fill, stretch, zoom'],
       ['N / P', 'Next or previous episode'],
       ['I', 'Playback info'],
       ['Enter', 'Skip intro or credits'],

@@ -115,17 +115,20 @@ export class MenuMixin {
     this.tracksBtn.classList.toggle('on', this.subIndex >= 0);
   }
 
-  // Video fit: fit (letterbox), fill (crop), stretch, zoom. V cycles.
+  // Video fit: fit (letterbox), auto crop (remove bars in the video), fill,
+  // stretch, zoom. V cycles.
   setFit(mode, announce = true) {
-    const modes = ['fit', 'fill', 'stretch', 'zoom'];
+    const modes = ['fit', 'crop', 'fill', 'stretch', 'zoom'];
     const fit = modes.includes(mode) ? mode : 'fit';
     for (const m of modes) this.el.classList.toggle(`fit-${m}`, m === fit && m !== 'fit');
     this.fit = fit;
-    if (announce) this.osd(`Video: ${{ fit: 'Fit', fill: 'Fill', stretch: 'Stretch', zoom: 'Zoom' }[fit]}`);
+    if (fit === 'crop') this.startCrop();
+    else this.stopCrop();
+    if (announce) this.osd(`Video: ${{ fit: 'Fit', crop: 'Auto crop', fill: 'Fill', stretch: 'Stretch', zoom: 'Zoom' }[fit]}`);
   }
 
   cycleFit() {
-    const modes = ['fit', 'fill', 'stretch', 'zoom'];
+    const modes = ['fit', 'crop', 'fill', 'stretch', 'zoom'];
     const next = modes[(modes.indexOf(this.fit || 'fit') + 1) % modes.length];
     this.setFit(next);
     store.setSetting('videoFit', next);

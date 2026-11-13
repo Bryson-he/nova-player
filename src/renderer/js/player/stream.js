@@ -24,6 +24,7 @@ export class StreamMixin {
     let { startTicks, audioIndex, subIndex } = opts;
     const { mediaSourceId, forceTranscode = this.forcedTranscode, message, announce } = opts;
     const my = ++this.loadToken;
+    if (this.fit === 'crop') this.startCrop(); // a new video has its own bars
     this.abort?.abort();
     const abort = new AbortController();
     this.abort = abort;

@@ -168,7 +168,7 @@ export function settingsView() {
         row('Skip intros and recaps', 'Uses Jellyfin media segments (10.10+ or the Intro Skipper plugin).', choice('skipIntro', [['button', 'Show a Skip button'], ['auto', 'Skip automatically'], ['off', 'Off']])),
         row('Show Up Next when credits start', 'If the server knows where the credits are.', toggle('skipCredits')),
         row('Start playback in fullscreen', null, toggle('startFullscreen')),
-        row('Video fit', 'How the picture fills the window. V cycles it during playback.', choice('videoFit', [['fit', 'Fit (letterbox)'], ['fill', 'Fill (crop)'], ['stretch', 'Stretch'], ['zoom', 'Zoom']])),
+        row('Video fit', 'How the picture fills the window. Auto crop finds black bars that are part of the video and zooms past them, great on ultrawide screens. V cycles it during playback.', choice('videoFit', [['fit', 'Fit (letterbox)'], ['crop', 'Auto crop (removes bars in the video)'], ['fill', 'Fill (crop to the window)'], ['stretch', 'Stretch'], ['zoom', 'Zoom']])),
         row('Seek back', null, choice('seekBack', [[5, '5 s'], [10, '10 s'], [15, '15 s'], [30, '30 s']], true)),
         row('Seek forward', null, choice('seekForward', [[10, '10 s'], [15, '15 s'], [30, '30 s'], [60, '60 s']], true)),
         row('Streaming buffer', 'How far ahead to load when the server is streaming or converting. Bigger helps on slow or unstable connections.',

@@ -122,7 +122,8 @@ So it picks the right tracks even when episodes order them differently, which is
   timer** that pauses after a while or stops at the end of the episode.
 - **Chapters** on the seek bar, **trickplay previews** when you hover it, and `PgUp` / `PgDn` to jump.
 - **Night mode** evens out explosions and dialogue, and **volume boost** goes up to 300% for quiet files.
-- **Video fit**: fit, fill, stretch or zoom with `V`, for ultrawide screens and letterboxed files.
+- **Auto crop** for ultrawide screens: Nova finds black bars that are part of the video itself and zooms past them,
+  so a 2.39:1 film fills the screen. Plus fit, fill, stretch and zoom; `V` cycles them.
 
 ### Mini player
 
