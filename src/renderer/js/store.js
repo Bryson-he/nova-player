@@ -27,6 +27,15 @@ export const DEFAULT_SETTINGS = {
   nightMode: false, // dynamic range compression + dialogue lift
   bufferSize: 'normal', // normal | large | max  (streamed/transcoded playback)
   newBadgeDays: 7, // how long something counts as NEW (0 = off)
+  accentSource: 'starlight', // starlight | windows
+  ambientTint: true, // tint movie and show pages with a colour from the poster
+  reduceTransparency: false, // solid sidebar instead of Mica, no blur over video
+  motion: 'system', // system | reduce | full
+  zoom: 1,
+  videoFit: 'fit', // fit | fill | stretch | zoom
+  subFont: '', // '' = Nova's font
+  subEdge: 'outline', // outline | shadow | raised | none
+  betaUpdates: false,
 };
 
 let data = {};

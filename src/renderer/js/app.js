@@ -1,6 +1,8 @@
 import { initStore, store } from './store.js';
 import { api } from './api.js';
-import { h, icon, iconBtn, toast, popupMenu } from './ui.js';
+import { h, icon, iconBtn, toast, popupMenu, initTooltips } from './ui.js';
+import { applyAppearance } from './appearance.js';
+import './diagnostics.js';
 import { initRouter, navigate, back, forward, canGoBack, canGoForward, onRouteChange, resetRouter, current } from './router.js';
 import { isPlayerOpen, closePlayer, closePlayerAndReport } from './player.js';
 import { loginView } from './views/login.js';
@@ -35,6 +37,8 @@ async function boot() {
   await Promise.all([initStore(), initUpdates()]);
   if (appInfo().version) api.version = appInfo().version;
   if (appInfo().mica) document.documentElement.classList.add('mica');
+  applyAppearance();
+  initTooltips();
   const server = store.get('server');
   const user = store.get('user');
   if (server?.url && user?.Id && store.signedIn) {

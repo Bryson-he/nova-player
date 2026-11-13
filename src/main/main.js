@@ -1,6 +1,6 @@
 'use strict';
 const {
-  app, BrowserWindow, ipcMain, protocol, net, session, safeStorage, shell, powerSaveBlocker, screen, Menu, dialog,
+  app, BrowserWindow, ipcMain, protocol, net, session, safeStorage, shell, powerSaveBlocker, screen, Menu, dialog, systemPreferences, nativeTheme,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -544,6 +544,19 @@ function registerIpc() {
 
   handle('open-external', (_e, url) => openExternalSafe(url));
 
+  handle('win:zoom', (_e, factor) => {
+    if (win && !win.isDestroyed()) win.webContents.setZoomFactor(factor);
+  });
+
+  // Windows accent colour as #rrggbb, for Settings → Appearance.
+  handle('app:accent', () => {
+    try {
+      return '#' + systemPreferences.getAccentColor().slice(0, 6);
+    } catch {
+      return null;
+    }
+  });
+
   // Screenshots go to Pictures\Nova Player.
   const shotsDir = () => path.join(app.getPath('pictures'), 'Nova Player');
   handle('screenshot:save', async (_e, bytes, name) => {
@@ -653,6 +666,8 @@ async function checkForUpdates(manual) {
     return updateState;
   }
   if (['downloading', 'ready'].includes(updateState.state)) return updateState;
+  // Settings → Updates → Get beta versions.
+  autoUpdater.allowPrerelease = store.settings?.betaUpdates === true;
   try {
     await autoUpdater.checkForUpdates();
   } catch (err) {
@@ -669,6 +684,8 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(async () => {
+  // Nova is dark whatever the Windows theme, so Mica and the caption buttons use their dark versions.
+  nativeTheme.themeSource = 'dark';
   if (app.isPackaged && !DEBUG) Menu.setApplicationMenu(null); // no reload / devtools shortcuts
   loadStore();
   // A new version may reuse the same file paths; drop anything cached by the old one.

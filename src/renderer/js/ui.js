@@ -46,7 +46,11 @@ const ICONS = {
   download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
   shuffle: 'M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z',
   trailer: 'M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z',
-  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+  filter: 'M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z',
+  more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
+  fit: 'M3 5v4h2V5h4V3H5c-1.1 0-2 .9-2 2zm2 10H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm14 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4zm0-16h-4v2h4v4h2V5c0-1.1-.9-2-2-2z',
+  copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
+    lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
   server: 'M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
   keyboard: 'M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z',
   palette: 'M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
@@ -448,8 +452,10 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
       if (it.header) return h('div', { class: 'menu-header' }, it.header);
       if (it.el) return it.el;
       return h('button', {
-        class: `menu-item${it.checked ? ' checked' : ''}`,
-        role: 'menuitem',
+        class: `menu-item${it.checked ? ' checked' : ''}${it.danger ? ' danger' : ''}`,
+        role: it.checked !== undefined ? 'menuitemradio' : 'menuitem',
+        'aria-checked': it.checked !== undefined ? String(!!it.checked) : null,
+        tabindex: -1,
         disabled: it.disabled,
         onclick: (e) => {
           e.stopPropagation();
@@ -458,7 +464,8 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
         },
       },
       h('span', { class: 'menu-check' }, it.checked ? icon('check') : null),
-      h('span', { class: 'menu-label' }, it.label, it.sub ? h('span', { class: 'menu-sub' }, it.sub) : null));
+      h('span', { class: 'menu-label' }, it.label, it.sub ? h('span', { class: 'menu-sub' }, it.sub) : null),
+      it.key ? h('span', { class: 'menu-key', 'aria-hidden': 'true' }, it.key) : null);
     }));
   container.append(menu);
 
@@ -473,19 +480,39 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
   const onDoc = (e) => {
     if (!menu.contains(e.target) && !anchor.contains(e.target)) close();
   };
+  // Keyboard: focus moves into the menu, Up/Down/Home/End move, Escape and Tab close.
+  const menuItems = () => [...menu.querySelectorAll('.menu-item:not(:disabled), .menu-row button, .menu-row input')];
   const onKey = (e) => {
+    const list = menuItems();
+    const i = list.indexOf(document.activeElement);
     if (e.key === 'Escape') {
+      e.preventDefault();
       e.stopPropagation();
       close();
+      anchor?.focus?.();
+    } else if (e.key === 'Tab') {
+      close();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (document.activeElement?.type === 'range') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      list[(i + step + list.length) % list.length]?.focus();
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      (e.key === 'Home' ? list[0] : list[list.length - 1])?.focus();
     }
   };
   setTimeout(() => document.addEventListener('pointerdown', onDoc, true), 0);
   document.addEventListener('keydown', onKey, true);
+  if (anchor && !at) anchor.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => (menu.querySelector('.menu-item.checked:not(:disabled)') || menuItems()[0])?.focus({ preventScroll: true }));
 
   const handle = {
     anchor,
     el: menu,
     close() {
+      anchor?.setAttribute?.('aria-expanded', 'false');
       menu.remove();
       document.removeEventListener('pointerdown', onDoc, true);
       document.removeEventListener('keydown', onKey, true);
@@ -497,4 +524,46 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
   }
   openMenu = handle;
   return handle;
+}
+
+// ---- Tooltips: the control's name and its shortcut, after 500 ms.
+// Native title tooltips are slow and can't show a shortcut, so `title`
+// attributes are moved to data-tip on first hover.
+let tipEl = null;
+let tipTimer = 0;
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipEl?.remove();
+  tipEl = null;
+}
+
+export function initTooltips() {
+  document.addEventListener('pointerover', (e) => {
+    const target = e.target.closest?.('[title], [data-tip]');
+    if (!target) return;
+    if (target.hasAttribute('title')) {
+      target.dataset.tip = target.getAttribute('title');
+      target.removeAttribute('title');
+    }
+    if (!target.dataset.tip) return;
+    hideTip();
+    tipTimer = setTimeout(() => {
+      if (!target.isConnected || !target.matches(':hover')) return;
+      tipEl = h('div', { class: 'tooltip', role: 'tooltip' }, target.dataset.tip,
+        target.dataset.shortcut ? h('kbd', null, target.dataset.shortcut) : null);
+      document.body.append(tipEl);
+      const r = target.getBoundingClientRect();
+      const t = tipEl.getBoundingClientRect();
+      let top = r.bottom + 6;
+      if (top + t.height > innerHeight - 4) top = r.top - t.height - 6;
+      tipEl.style.top = `${top}px`;
+      tipEl.style.left = `${Math.min(Math.max(4, r.left + r.width / 2 - t.width / 2), innerWidth - t.width - 4)}px`;
+    }, 500);
+  });
+  document.addEventListener('pointerout', (e) => {
+    if (e.target.closest?.('[data-tip]')) hideTip();
+  });
+  document.addEventListener('pointerdown', hideTip, true);
+  document.addEventListener('keydown', hideTip, true);
 }

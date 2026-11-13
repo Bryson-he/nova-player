@@ -13,6 +13,7 @@
 /** @type {Check} */ const optBool = (v) => v === undefined || typeof v === 'boolean';
 /** @type {(max: number) => Check} */ const str = (max) => (v) => typeof v === 'string' && v.length <= max;
 /** @type {Check} */ const any = () => true;
+/** @type {Check} */ const zoom = (v) => typeof v === 'number' && v >= 0.5 && v <= 2;
 /** @type {Check} */ const bytes = (v) => v instanceof ArrayBuffer || ArrayBuffer.isView(v);
 /** @type {Check} */ const signIn = (v) => {
   if (!v || typeof v !== 'object') return false;
@@ -43,6 +44,8 @@ const CHANNELS = {
   'win:fullscreen': { kind: 'invoke', expose: 'setFullscreen', args: [optBool] },
   'win:overlay': { kind: 'send', expose: 'setDarkOverlay', args: [bool], coerce: [Boolean] },
   'win:mini': { kind: 'invoke', expose: 'setMini', args: [bool], coerce: [Boolean] },
+  'win:zoom': { kind: 'send', expose: 'setZoom', args: [zoom], coerce: [Number] },
+  'app:accent': { kind: 'invoke', expose: 'accentColor', args: [] },
   'open-external': { kind: 'send', expose: 'openExternal', args: [str(4096)] },
   'screenshot:save': { kind: 'invoke', expose: 'saveScreenshot', args: [bytes, str(1024)] },
   'shell:show': { kind: 'send', expose: 'showInFolder', args: [str(4096)] },

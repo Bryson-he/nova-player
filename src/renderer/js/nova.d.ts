@@ -25,11 +25,14 @@ interface NovaBridge {
   setFullscreen(value?: boolean): Promise<boolean>;
   setDarkOverlay(dark: boolean): void;
   setMini(on: boolean): Promise<boolean>;
+  setZoom(factor: number): void;
+  accentColor(): Promise<string | null>;
+  discoverServers(): Promise<{ id: string; name: string; url: string }[]>;
   openExternal(url: string): void;
   saveScreenshot(bytes: ArrayBuffer | ArrayBufferView, name: string): Promise<string>;
   showInFolder(file: string): void;
 
-  appInfo(): Promise<{ version: string; homepage: string }>;
+  appInfo(): Promise<{ version: string; homepage: string; mica: boolean }>;
   closeReady(): void;
   updateState(): Promise<Record<string, unknown>>;
   checkForUpdates(): Promise<Record<string, unknown>>;

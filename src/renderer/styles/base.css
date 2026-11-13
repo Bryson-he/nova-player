@@ -41,3 +41,7 @@ p { margin: 0; }
   :focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
   .nav-link.active, .season-tab[aria-selected='true'] { outline: 2px solid Highlight; }
 }
+
+/* Settings → Appearance → Reduce transparency: no blur, solid panels. */
+.reduce-transparency * { backdrop-filter: none !important; }
+.reduce-transparency { --glass: #17171a; }
