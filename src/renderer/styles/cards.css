@@ -1,0 +1,66 @@
+/* Poster and thumbnail cards, rows and badges. */
+.card { cursor: pointer; min-width: 0; border-radius: var(--r-m); }
+.card:focus-visible { box-shadow: none; }
+.card-img { position: relative; border-radius: var(--r-m); overflow: hidden; background: var(--surface-2); aspect-ratio: 2 / 3; transition: transform var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease); }
+.card.landscape .card-img { aspect-ratio: 16 / 9; }
+.card-img img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--dur-2); }
+.card-img img.loaded { opacity: 1; }
+/* Blurred placeholder from the server's blur hash, behind the image. */
+.card-img canvas.blur { position: absolute; inset: 0; width: 100%; height: 100%; }
+.card-img img { position: relative; }
+.card:hover .card-img { transform: scale(1.02); box-shadow: var(--shadow-2); }
+.card:focus-visible .card-img { box-shadow: var(--focus); }
+.card-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); }
+.card-fallback .icon { width: 40px; height: 40px; opacity: 0.5; }
+.card-title { margin-top: var(--s-2); font-weight: 600; font-size: var(--fs-body); line-height: var(--lh-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-sub { color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.badge { position: absolute; top: var(--s-2); right: var(--s-2); min-width: 24px; height: 24px; padding: 0 7px; border-radius: var(--r-full); background: rgba(14, 14, 16, 0.85); color: var(--text); font-size: var(--fs-caption); font-weight: 600; display: grid; place-items: center; }
+.badge-played { padding: 0; }
+.badge-played .icon { width: 16px; height: 16px; color: var(--success); }
+.badge-new { position: absolute; top: var(--s-2); left: var(--s-2); padding: 2px var(--s-2); border-radius: var(--r-s); background: var(--spot); color: var(--on-spot); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: 700; transition: opacity var(--dur-1); }
+.card:hover .badge-new { opacity: 0; }
+.pill-new { display: inline-block; margin-left: var(--s-2); padding: 0 6px; border-radius: var(--r-s); background: var(--spot); color: var(--on-spot); font-size: var(--fs-caption); line-height: var(--lh-caption); font-weight: 700; vertical-align: 1px; }
+.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, 0.55); }
+.progress > div { height: 100%; background: var(--accent); }
+
+/* Play and remove appear on hover, and on keyboard focus. */
+.card-play { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; cursor: pointer; opacity: 0; transform: scale(0.9); transition: opacity var(--dur-1), transform var(--dur-1) var(--ease); box-shadow: var(--shadow-1); }
+.card-play .icon { width: 22px; height: 22px; }
+.card:hover .card-play, .card:focus-within .card-play { opacity: 1; transform: none; }
+.card-remove { position: absolute; top: var(--s-2); left: var(--s-2); width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(14, 14, 16, 0.85); color: var(--text); display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity var(--dur-1), background var(--dur-1); }
+.card-remove .icon { width: 16px; height: 16px; }
+.card:hover .card-remove, .card:focus-within .card-remove { opacity: 1; }
+.card-remove:hover { background: var(--danger); }
+.card.removing { opacity: 0.4; pointer-events: none; }
+
+/* ---- Rows */
+.row { margin: var(--s-2) 0 var(--s-6); }
+.row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-3); }
+.row-head h2 { font-size: var(--fs-title2); line-height: var(--lh-title2); }
+.row-nav { display: flex; gap: var(--s-1); opacity: 0; transition: opacity var(--dur-1); }
+.row:hover .row-nav, .row-nav:focus-within { opacity: 1; }
+.row:not(.overflows) .row-nav { visibility: hidden; }
+.row-nav .icon-btn { width: 32px; height: 32px; }
+.row-track { display: grid; grid-auto-flow: column; grid-auto-columns: 168px; gap: var(--s-4); overflow-x: auto; overflow-y: visible; padding: 6px 2px var(--s-3); margin: -6px -2px 0; scroll-snap-type: x proximity; scrollbar-width: none; }
+.row-track::-webkit-scrollbar { display: none; }
+.row-track > * { scroll-snap-align: start; }
+.row-track:has(.card.landscape) { grid-auto-columns: 300px; }
+
+.person { width: 128px; }
+.person img, .person-fallback { width: 128px; height: 128px; border-radius: 50%; object-fit: cover; background: var(--surface-2); }
+.person-fallback { display: grid; place-items: center; font-size: 36px; color: var(--text-3); }
+.person-name { margin-top: var(--s-2); font-weight: 600; text-align: center; font-size: var(--fs-callout); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-role { color: var(--text-2); text-align: center; font-size: var(--fs-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-track:has(.person) { grid-auto-columns: 128px; }
+
+.grid { display: grid; gap: var(--s-5) var(--s-4); }
+.grid.portrait.size-s { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+.grid.portrait.size-m { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.grid.portrait.size-l { grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); }
+.grid.landscape.size-s { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.grid.landscape.size-m { grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); }
+.grid.landscape.size-l { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); }
+.person-btn { border: 0; background: none; padding: 0; cursor: pointer; text-align: center; border-radius: var(--r-m); }
+.person-btn:hover img, .person-btn:hover .person-fallback { box-shadow: var(--shadow-2); }
+.person img, .person-fallback { transition: box-shadow var(--dur-2); }

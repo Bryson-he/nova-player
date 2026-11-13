@@ -4,83 +4,89 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Nova Player</title>
-  <meta name="description" content="A fast, modern Jellyfin player for Windows that never freezes, remembers your library sorting, and keeps your audio and subtitle choices across a whole series.">
+  <meta name="description" content="A fast, calm Jellyfin player for Windows that never freezes on Play, remembers your library sorting, and keeps your audio and subtitle choices across a whole series.">
   <link rel="icon" type="image/png" href="icon.png">
   <style>
+    /* Same tokens as the app (src/renderer/styles/tokens.css). */
     :root {
-      --bg: #0b0d12; --bg-2: #10131a; --surface: #161a23; --border: rgba(255,255,255,.08);
-      --text: #e9ebf2; --muted: #9aa1b3; --accent: #7c6cff; --accent-2: #4fa3ff;
-      --grad: linear-gradient(135deg, #8b6cff 0%, #4f8bff 100%);
+      color-scheme: dark;
+      --bg: #0e0e10; --surface: #17171a; --surface-2: #202024; --surface-3: #2a2a2f;
+      --separator: rgba(255, 255, 255, .08);
+      --text: #f2f2f3; --text-2: #a6a6ad; --text-3: #85858e;
+      --accent: #f3e7cf; --on-accent: #111113; --spot: #ff6a3d;
+      --r-m: 10px; --r-l: 14px; --r-xl: 20px;
+      --shadow-3: 0 24px 64px rgba(0, 0, 0, .55);
+      --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
-    a { color: var(--accent-2); }
+    a { color: var(--text); text-underline-offset: 3px; text-decoration-color: var(--text-3); }
+    a:hover { text-decoration-color: var(--text); }
+    :focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-m); }
     .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
-    header { position: sticky; top: 0; z-index: 10; background: rgba(11,13,18,.8); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
+    header { position: sticky; top: 0; z-index: 10; background: rgba(14, 14, 16, .9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--separator); }
     header .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--text); text-decoration: none; }
-    .brand img { width: 30px; height: 30px; border-radius: 8px; }
-    nav a { color: var(--muted); text-decoration: none; margin-left: 22px; font-weight: 500; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; text-decoration: none; }
+    .brand img { width: 28px; height: 28px; }
+    nav a { color: var(--text-2); text-decoration: none; margin-left: 22px; }
     nav a:hover { color: var(--text); }
 
-    .hero { position: relative; padding: 96px 0 40px; text-align: center; overflow: hidden; }
-    .hero::before { content: ''; position: absolute; inset: -40% -10% auto; height: 700px; background: radial-gradient(600px 360px at 30% 40%, rgba(124,108,255,.28), transparent 70%), radial-gradient(500px 320px at 75% 30%, rgba(79,139,255,.22), transparent 70%); pointer-events: none; }
-    .hero > * { position: relative; }
-    .pill { display: inline-block; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,.04); color: var(--muted); font-size: 14px; }
-    h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.05; margin: 22px 0 18px; letter-spacing: -1.5px; }
-    h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .lead { max-width: 640px; margin: 0 auto; color: #c3c8d6; font-size: 19px; }
-    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 34px 0 14px; }
-    .btn { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 26px; border-radius: 12px; font-weight: 600; text-decoration: none; transition: transform .15s, filter .15s; }
-    .btn:hover { transform: translateY(-1px); }
-    .btn-primary { background: var(--grad); color: #fff; box-shadow: 0 10px 34px rgba(110,100,255,.4); }
-    .btn-primary:hover { filter: brightness(1.08); }
-    .btn-secondary { background: rgba(255,255,255,.07); color: var(--text); border: 1px solid var(--border); }
+    .hero { padding: 88px 0 40px; text-align: center; }
+    .eyebrow { color: var(--text-2); font-size: 14px; }
+    h1 { font: 600 clamp(38px, 6vw, 60px)/1.08 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif; margin: 16px 0 18px; letter-spacing: -1px; }
+    .lead { max-width: 640px; margin: 0 auto; color: var(--text-2); font-size: 18px; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 32px 0 14px; }
+    .btn { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 24px; border-radius: var(--r-m); font-weight: 600; text-decoration: none; transition: background .12s; }
+    .btn-primary { background: var(--accent); color: var(--on-accent); }
+    .btn-primary:hover { background: #fff6e4; }
+    .btn-secondary { background: var(--surface-3); color: var(--text); }
+    .btn-secondary:hover { background: #34343a; }
     .btn svg { width: 20px; height: 20px; fill: currentColor; }
-    .small { color: var(--muted); font-size: 14px; }
+    .small { color: var(--text-2); font-size: 14px; }
 
-    .shot { margin: 48px auto 0; max-width: 1080px; border-radius: 16px; overflow: hidden; border: 1px solid var(--border); box-shadow: 0 40px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(124,108,255,.15); }
+    .shot { margin: 48px auto 0; max-width: 1080px; border-radius: var(--r-l); overflow: hidden; box-shadow: var(--shadow-3); }
     .shot img { display: block; width: 100%; height: auto; }
 
-    section { padding: 80px 0; }
-    h2 { font-size: clamp(28px, 4vw, 40px); margin: 0 0 12px; letter-spacing: -.5px; text-align: center; }
-    .sub { text-align: center; color: var(--muted); max-width: 620px; margin: 0 auto 44px; }
+    section { padding: 72px 0; }
+    h2 { font: 600 clamp(26px, 4vw, 36px)/1.2 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif; margin: 0 0 10px; text-align: center; }
+    .sub { text-align: center; color: var(--text-2); max-width: 620px; margin: 0 auto 40px; }
 
-    .fixes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-    .fix { padding: 26px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); }
-    .fix .ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(124,108,255,.15); margin-bottom: 14px; }
-    .fix .ico svg { width: 24px; height: 24px; fill: var(--accent); }
-    .fix h3 { margin: 0 0 6px; font-size: 19px; }
-    .fix p { margin: 0; color: #b8bfcf; font-size: 15px; }
+    .fixes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .fix { padding: 24px; border-radius: var(--r-l); background: var(--surface); }
+    .fix svg { width: 24px; height: 24px; fill: var(--accent); margin-bottom: 12px; }
+    .fix h3 { margin: 0 0 6px; font-size: 18px; font-weight: 600; }
+    .fix p { margin: 0; color: var(--text-2); font-size: 15px; }
 
-    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    .gallery figure { margin: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+    .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .gallery figure { margin: 0; border-radius: var(--r-l); overflow: hidden; background: var(--surface); }
     .gallery img { display: block; width: 100%; height: auto; }
-    .gallery figcaption { padding: 12px 16px; color: var(--muted); font-size: 14px; }
+    .gallery figcaption { padding: 12px 16px; color: var(--text-2); font-size: 14px; }
 
-    .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 40px; max-width: 900px; margin: 0 auto; padding: 0; list-style: none; }
-    .features li { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); color: #d2d6e2; }
-    .features li::before { content: ''; flex: none; width: 20px; height: 20px; margin-top: 3px; border-radius: 50%; background: var(--grad) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") center / 14px no-repeat; }
+    .features { columns: 2; column-gap: 40px; max-width: 900px; margin: 0 auto; padding: 0; list-style: none; }
+    .features li { break-inside: avoid; display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--separator); }
+    .features li::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: 10px; border-radius: 50%; background: var(--accent); }
 
-    .keys { max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 28px; }
-    .key { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--border); color: #c9cedb; }
-    kbd { font: 600 13px ui-monospace, Consolas, monospace; padding: 3px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); white-space: nowrap; }
+    .keys { max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 28px; }
+    .key { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--separator); }
+    kbd { font: 600 13px 'Segoe UI Variable Text', 'Segoe UI', sans-serif; padding: 2px 8px; border-radius: 6px; background: var(--surface-3); white-space: nowrap; }
 
-    .download { text-align: center; padding: 70px 24px; border-radius: 24px; background: radial-gradient(600px 300px at 50% 0%, rgba(124,108,255,.25), transparent 70%), var(--surface); border: 1px solid var(--border); }
-    footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; text-align: center; }
+    .download { text-align: center; padding: 64px 24px; border-radius: var(--r-xl); background: var(--surface); }
+    footer { padding: 40px 0 60px; color: var(--text-2); font-size: 14px; text-align: center; }
 
     @media (max-width: 860px) {
-      .fixes, .gallery, .features, .keys { grid-template-columns: 1fr; }
+      .fixes, .gallery, .keys { grid-template-columns: 1fr; }
+      .features { columns: 1; }
       nav a:not(.gh) { display: none; }
-      .hero { padding-top: 64px; }
+      .hero { padding-top: 56px; }
     }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
   <header>
     <div class="wrap">
       <a class="brand" href="#"><img src="icon.png" alt="">Nova Player</a>
-      <nav>
+      <nav aria-label="Page">
         <a href="#fixes">Why Nova</a>
         <a href="#features">Features</a>
         <a href="#keys">Shortcuts</a>
@@ -89,129 +95,126 @@
     </div>
   </header>
 
-  <div class="hero">
-    <div class="wrap">
-      <span class="pill">Free &amp; open source · Windows 10 / 11 · Jellyfin 10.8+</span>
-      <h1>The Jellyfin player<br><span>that just works.</span></h1>
-      <p class="lead">Nova is a fast, modern desktop client for your Jellyfin server. It doesn't freeze when you press Play, it remembers how you sort every library, and it keeps your audio and subtitle choices for the whole series.</p>
-      <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/Bryson-he/nova-player/releases/latest/download/NovaPlayer-Setup.exe">
-          <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download for Windows</a>
-        <a class="btn btn-secondary" href="https://github.com/Bryson-he/nova-player/releases/latest/download/NovaPlayer-Portable.exe">Portable version</a>
-      </div>
-      <div class="small">Updates install automatically · <a href="https://github.com/Bryson-he/nova-player/releases">All releases</a></div>
-      <div class="shot"><img src="images/home.webp" alt="Nova Player home screen"></div>
-    </div>
-  </div>
-
-  <section id="fixes">
-    <div class="wrap">
-      <h2>Fixes for the stuff that annoys you</h2>
-      <p class="sub">These are the most common complaints about Jellyfin Media Player, each one fixed.</p>
-      <div class="fixes">
-        <div class="fix">
-          <div class="ico"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-          <h3>No more freezing on Play</h3>
-          <p>The player opens instantly. Every server request runs in the background with a timeout, and you can always back out while it loads. If your PC can't play a file directly, Nova switches to server transcoding on its own instead of hanging.</p>
-        </div>
-        <div class="fix">
-          <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg></div>
-          <h3>Sorting that sticks</h3>
-          <p>Each library remembers its own sort, order, filter, genre and card size, even after a restart. Going back keeps your exact scroll position, and big libraries get an A–Z jump bar.</p>
-        </div>
-        <div class="fix">
-          <div class="ico"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg></div>
-          <h3>Tracks remembered per series</h3>
-          <p>Pick Japanese audio and English subtitles once, and every episode follows. Nova matches tracks by language, title, forced/SDH and commentary, not by position, so it still works when episodes order their tracks differently.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <div class="gallery">
-        <figure><img src="images/player.webp" alt="Player with playback info panel" loading="lazy"><figcaption>The player, with a playback info panel that tells you <em>why</em> a file is transcoding.</figcaption></figure>
-        <figure><img src="images/series.webp" alt="Series page" loading="lazy"><figcaption>Series page: next-up, shuffle, trailer, mark a season watched, and track memory.</figcaption></figure>
-        <figure><img src="images/library.webp" alt="Library grid" loading="lazy"><figcaption>Library with remembered sorting, filters, genres and A–Z jump.</figcaption></figure>
-        <figure><img src="images/home.webp" alt="Home screen" loading="lazy"><figcaption>Home: Continue Watching, Next Up, Favorites and recently added.</figcaption></figure>
-      </div>
-    </div>
-  </section>
-
-  <section id="features">
-    <div class="wrap">
-      <h2>Everything else you'd expect</h2>
-      <p class="sub">Plus a few things you've probably wished Jellyfin had.</p>
-      <ul class="features">
-        <li>NEW badges for shows with new episodes, plus a New Episodes row</li>
-        <li>Subtitles ready the instant an episode starts</li>
-        <li>Right-click any title for quick actions</li>
-        <li>Skip Intro / Recap button, or auto-skip (Jellyfin media segments or Intro Skipper)</li>
-        <li>Up Next countdown when the credits start, with auto-play</li>
-        <li>Trickplay thumbnails when hovering the seek bar</li>
-        <li>Styled anime subtitles (ASS/SSA) with their own fonts, signs and karaoke</li>
-        <li>Dual subtitles: a second language at the top of the screen</li>
-        <li>Subtitle size, colour, background, position and outline</li>
-        <li>Subtitle sync (Z / X), remembered per series</li>
-        <li>Chapter marks on the seek bar and chapter jumping</li>
-        <li>Night mode and volume boost up to 300%</li>
-        <li>Full-resolution screenshots with Ctrl+S</li>
-        <li>Adjustable streaming buffer for slow connections</li>
-        <li>PGS / VobSub image subtitles burned in automatically</li>
-        <li>Instant audio-track switching while direct playing</li>
-        <li>Quality and playback-speed menus</li>
-        <li>Shuffle a show or a whole library</li>
-        <li>Remove items from Continue Watching</li>
-        <li>"Ends at" time on every movie and episode</li>
-        <li>Always-on-top mini player and media-key support</li>
-        <li>Screen stays awake during playback</li>
-        <li>Quick Connect sign-in; login encrypted with Windows DPAPI</li>
-        <li>Remembers volume, window size and position</li>
-        <li>Automatic updates from GitHub Releases</li>
-      </ul>
-    </div>
-  </section>
-
-  <section id="keys">
-    <div class="wrap">
-      <h2>Keyboard shortcuts</h2>
-      <p class="sub">Everything in the player is one key away.</p>
-      <div class="keys">
-        <div class="key">Play / pause <kbd>Space</kbd></div>
-        <div class="key">Seek back / forward <kbd>← →</kbd></div>
-        <div class="key">Volume <kbd>↑ ↓</kbd></div>
-        <div class="key">Fullscreen <kbd>F</kbd></div>
-        <div class="key">Cycle audio / subtitles <kbd>A / S</kbd></div>
-        <div class="key">Subtitle sync <kbd>Z / X</kbd></div>
-        <div class="key">Next / previous episode <kbd>N / P</kbd></div>
-        <div class="key">Playback info <kbd>I</kbd></div>
-        <div class="key">Jump to 0–90 % <kbd>0–9</kbd></div>
-        <div class="key">Speed down / up <kbd>[ / ]</kbd></div>
-        <div class="key">Previous / next chapter <kbd>PgUp / PgDn</kbd></div>
-        <div class="key">Mini player <kbd>T</kbd></div>
-        <div class="key">Screenshot <kbd>Ctrl+S</kbd></div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <div class="download">
-        <h2>Get Nova Player</h2>
-        <p class="sub" style="margin-bottom:28px">Free, open source, and it updates itself.</p>
-        <div class="cta" style="margin:0">
+  <main>
+    <div class="hero">
+      <div class="wrap">
+        <div class="eyebrow">Free and open source · Windows 10 and 11 · Jellyfin 10.8+</div>
+        <h1>The Jellyfin player<br>that just works.</h1>
+        <p class="lead">Nova is a fast, calm desktop app for your Jellyfin server. It doesn't freeze when you press Play, it remembers how you sort every library, and it keeps your audio and subtitle choices for the whole series.</p>
+        <div class="cta">
           <a class="btn btn-primary" href="https://github.com/Bryson-he/nova-player/releases/latest/download/NovaPlayer-Setup.exe">
-            <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download installer</a>
-          <a class="btn btn-secondary" href="https://github.com/Bryson-he/nova-player">View source</a>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download for Windows</a>
+          <a class="btn btn-secondary" href="https://github.com/Bryson-he/nova-player/releases/latest/download/NovaPlayer-Portable.exe">Portable version</a>
         </div>
-        <p class="small" style="margin-top:18px">Windows may show "Windows protected your PC" the first time. Click <b>More info → Run anyway</b> (the app isn't code-signed).</p>
+        <div class="small">Updates install themselves · <a href="https://github.com/Bryson-he/nova-player/releases">All releases</a></div>
+        <div class="shot"><img src="images/home.webp" alt="Nova Player's home screen, with a Continue watching hero and rows of shows and movies" width="1440" height="900"></div>
       </div>
     </div>
-  </section>
+
+    <section id="fixes">
+      <div class="wrap">
+        <h2>Fixes for the things that annoy you</h2>
+        <p class="sub">The most common complaints about Jellyfin Media Player, each one fixed.</p>
+        <div class="fixes">
+          <div class="fix">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            <h3>No more freezing on Play</h3>
+            <p>The player opens instantly. Every request runs in the background with a timeout, and you can always back out. If your PC can't play a file directly, Nova switches to server transcoding on its own.</p>
+          </div>
+          <div class="fix">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/></svg>
+            <h3>Sorting that sticks</h3>
+            <p>Each library remembers its own sort, filter, genre and card size, even after a restart. Back and Forward keep your place, and big libraries get an A–Z jump bar.</p>
+          </div>
+          <div class="fix">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/></svg>
+            <h3>Tracks remembered per series</h3>
+            <p>Pick Japanese audio and English subtitles once, and every episode follows. Nova matches tracks by what they are, not their position, so it still works when episodes order them differently.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-label="Screenshots">
+      <div class="wrap">
+        <div class="gallery">
+          <figure><img src="images/subtitles.webp" alt="A styled sign subtitle and a styled line of dialogue" loading="lazy" width="1440" height="900"><figcaption>Styled anime subtitles, drawn by libass with their own fonts and signs.</figcaption></figure>
+          <figure><img src="images/series.webp" alt="A series page tinted with a colour from its poster" loading="lazy" width="1440" height="900"><figcaption>Show pages take a soft colour from the poster, and show the tracks Nova remembers.</figcaption></figure>
+          <figure><img src="images/library.webp" alt="A movie library grid with sort and filter menus" loading="lazy" width="1440" height="900"><figcaption>Libraries remember their sorting; active filters show as chips.</figcaption></figure>
+          <figure><img src="images/search.webp" alt="Search results appearing as you type" loading="lazy" width="1440" height="900"><figcaption>Search from anywhere with Ctrl K, including people.</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="wrap">
+        <h2>Everything else you'd expect</h2>
+        <p class="sub">Plus a few things you've probably wished Jellyfin had.</p>
+        <ul class="features">
+          <li>Play, pause and skip from the Windows taskbar, with progress on the icon</li>
+          <li>A Continue watching jump list on the taskbar</li>
+          <li>Servers on your network found for you; switch user or server any time</li>
+          <li>New badges for shows with new episodes, and a New episodes row</li>
+          <li>Subtitles ready the instant an episode starts</li>
+          <li>Skip intro and recap, or skip automatically</li>
+          <li>Up Next when the credits start, and Still watching? after a few episodes</li>
+          <li>Sleep timer: pause later, or stop after this episode</li>
+          <li>Styled ASS/SSA subtitles with their own fonts, signs and karaoke</li>
+          <li>Dual subtitles: a second language at the top of the picture</li>
+          <li>Subtitle font, size, colour, edge, background and position</li>
+          <li>Subtitle sync with Z and X, remembered per series</li>
+          <li>Trickplay previews and chapter marks on the seek bar</li>
+          <li>Night mode and volume boost up to 300%</li>
+          <li>Video fit: fit, fill, stretch or zoom</li>
+          <li>Always-on-top mini player</li>
+          <li>Your Windows accent colour, reduced motion and app zoom</li>
+          <li>Every screen works with the keyboard alone</li>
+          <li>Your sign-in stays in Nova's core, never in a link</li>
+          <li>No telemetry: Nova talks only to your server and GitHub</li>
+          <li>Updates itself, with an opt-in beta channel</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="keys">
+      <div class="wrap">
+        <h2>Keyboard shortcuts</h2>
+        <p class="sub">Press ? in Nova to see them all.</p>
+        <div class="keys">
+          <div class="key">Search <kbd>Ctrl K</kbd></div>
+          <div class="key">Back / forward <kbd>Alt ← / →</kbd></div>
+          <div class="key">Play / pause <kbd>Space</kbd></div>
+          <div class="key">Seek back / forward <kbd>← →</kbd></div>
+          <div class="key">Volume <kbd>↑ ↓</kbd></div>
+          <div class="key">Fullscreen <kbd>F</kbd></div>
+          <div class="key">Next audio / subtitle track <kbd>A / S</kbd></div>
+          <div class="key">Subtitle sync <kbd>Z / X</kbd></div>
+          <div class="key">Next / previous episode <kbd>N / P</kbd></div>
+          <div class="key">Video fit <kbd>V</kbd></div>
+          <div class="key">Mini player <kbd>T</kbd></div>
+          <div class="key">Screenshot <kbd>Ctrl S</kbd></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="download">
+          <h2>Get Nova Player</h2>
+          <p class="sub" style="margin-bottom:28px">Free, open source, and it updates itself.</p>
+          <div class="cta" style="margin:0">
+            <a class="btn btn-primary" href="https://github.com/Bryson-he/nova-player/releases/latest/download/NovaPlayer-Setup.exe">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>Download installer</a>
+            <a class="btn btn-secondary" href="https://github.com/Bryson-he/nova-player">View source</a>
+          </div>
+          <p class="small" style="margin-top:18px">Windows may show "Windows protected your PC" the first time. Click <b>More info → Run anyway</b> (Nova isn't code-signed yet).</p>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <footer>
-    Nova Player is an independent project and isn't affiliated with the Jellyfin project. · MIT License
+    Nova Player is an independent project and isn't affiliated with the Jellyfin project. · MIT Licence
   </footer>
 </body>
 </html>

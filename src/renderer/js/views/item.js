@@ -1,9 +1,11 @@
 import { api, TICKS } from '../api.js';
 import {
-  h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select, isNewItem, itemMenu,
+  h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select, isNewItem, itemMenu, popupMenu, fadeImg,
   backdropUrl, posterUrl, logoUrl, landscapeUrl, formatRuntime, formatTime, endsAt, epLabel,
 } from '../ui.js';
-import { navigate, scroller } from '../router.js';
+import { navigate, scroller, setPageTitle } from '../router.js';
+import { store } from '../store.js';
+import { tintFromHash } from '../blurhash.js';
 import { openPlayer, shufflePlay } from '../player.js';
 import {
   chooseAudio, chooseSubtitle, audioStreams, subStreams, streamLabel, rememberTrack, seriesPref, forgetSeries,
@@ -26,8 +28,10 @@ export function itemView({ id, seasonId }) {
         item = await api.item(item.SeriesId);
         if (my !== token) return;
       }
+      setPageTitle(self, item.Name);
       let content;
-      if (item.Type === 'Series') content = await renderSeries(item, my);
+      if (item.Type === 'Person') content = await renderPerson(item, my);
+      else if (item.Type === 'Series') content = await renderSeries(item, my);
       else if (item.Type === 'BoxSet' || item.IsFolder) content = await renderCollection(item, my);
       else content = renderPlayable(item);
       if (my !== token || !content) return;
@@ -68,7 +72,10 @@ export function itemView({ id, seasonId }) {
     const logo = logoUrl(item);
     const poster = item.Type === 'Episode' ? landscapeUrl(item, 640) : posterUrl(item, 500);
     const title = titleOverride || item.Name;
-    return h('section', { class: 'hero' },
+    // Ambient tint: a calm colour from the poster, washed over the hero.
+    const hash = Object.values(item.ImageBlurHashes?.Primary || {})[0];
+    const tint = store.setting('ambientTint') ? tintFromHash(hash) : null;
+    return h('section', { class: 'hero', style: tint ? { '--tint': tint } : null },
       bd ? h('div', { class: 'hero-bg', style: { backgroundImage: `url("${bd}")` } }) : null,
       h('div', { class: 'hero-fade' }),
       h('div', { class: 'hero-content' },
@@ -90,33 +97,43 @@ export function itemView({ id, seasonId }) {
     return button('Trailer', { icon: 'trailer', onclick: () => window.nova.openExternal(url) });
   }
 
-  function toggleBtns(item, onChange) {
+  // Less-used actions live in a More menu next to the main buttons.
+  function moreBtn(item, onChange, extra = []) {
     const ud = item.UserData || {};
-    const playedBtn = iconBtn('check', ud.Played ? 'Mark unwatched' : 'Mark watched', async () => {
+    const act = (fn, done) => async () => {
       try {
-        await api.setPlayed(item.Id, !ud.Played);
+        await fn();
+        toast(done);
         onChange();
       } catch (e) {
         toast(e.message, 'error');
       }
-    }, `round ${ud.Played ? 'on' : ''}`);
-    const favBtn = iconBtn('heart', ud.IsFavorite ? 'Remove favorite' : 'Add to favorites', async () => {
-      try {
-        await api.setFavorite(item.Id, !ud.IsFavorite);
-        onChange();
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    }, `round fav ${ud.IsFavorite ? 'on' : ''}`);
-    return [playedBtn, favBtn];
+    };
+    const btn = iconBtn('more', 'More', () => popupMenu(btn, [
+      ...extra,
+      extra.length ? { divider: true } : null,
+      { label: ud.Played ? 'Mark unwatched' : 'Mark watched', onClick: act(() => api.setPlayed(item.Id, !ud.Played), ud.Played ? 'Marked unwatched' : 'Marked watched') },
+      { label: ud.IsFavorite ? 'Remove from favourites' : 'Add to favourites', onClick: act(() => api.setFavorite(item.Id, !ud.IsFavorite), ud.IsFavorite ? 'Removed from favourites' : 'Added to favourites') },
+    ].filter(Boolean)), 'round');
+    btn.setAttribute('aria-haspopup', 'menu');
+    return btn;
+  }
+
+  // Watched and favourite state, shown quietly beside the buttons.
+  function stateChips(item) {
+    const ud = item.UserData || {};
+    return [
+      ud.Played ? h('span', { class: 'chip' }, icon('check'), 'Watched') : null,
+      ud.IsFavorite ? h('span', { class: 'chip' }, icon('heart'), 'Favourite') : null,
+    ];
   }
 
   function loadExtras(item, my) {
     const cast = (item.People || []).filter((p) => p.Type === 'Actor' || p.Type === 'Director').slice(0, 24);
     if (cast.length) {
       el.append(h('section', { class: 'row' },
-        h('div', { class: 'row-head' }, h('h2', null, 'Cast & Crew')),
-        h('div', { class: 'row-track' }, cast.map((p) => h('div', { class: 'person' },
+        h('div', { class: 'row-head' }, h('h2', null, 'Cast and crew')),
+        h('div', { class: 'row-track' }, cast.map((p) => h('button', { class: 'person person-btn', onclick: () => navigate('item', { id: p.Id }) },
           p.PrimaryImageTag
             ? h('img', { src: api.image(p.Id, 'Primary', { tag: p.PrimaryImageTag, maxWidth: 200 }), loading: 'lazy', alt: '' })
             : h('div', { class: 'person-fallback' }, p.Name[0]),
@@ -125,7 +142,7 @@ export function itemView({ id, seasonId }) {
     }
     if (['Movie', 'Series'].includes(item.Type)) {
       api.similar(item.Id).then((items) => {
-        if (my === token && items.length) el.append(row('More Like This', items));
+        if (my === token && items.length) el.append(row('More like this', items));
       });
     }
   }
@@ -177,7 +194,8 @@ export function itemView({ id, seasonId }) {
         : button('Play', { icon: 'play', variant: 'primary', onclick: () => play(true) }),
       pos > 0 ? button('From start', { icon: 'replay', onclick: () => play(true) }) : null,
       trailerBtn(item),
-      ...toggleBtns(item, () => load(true)),
+      moreBtn(item, () => load(true), item.Type === 'Episode' && item.SeriesId ? [{ label: 'Go to series', onClick: () => navigate('item', { id: item.SeriesId }) }] : []),
+      ...stateChips(item),
     ];
 
     const subtitle = item.Type === 'Episode'
@@ -214,14 +232,16 @@ export function itemView({ id, seasonId }) {
       button(playLabel, { icon: 'play', variant: 'primary', onclick: playNext }),
       button('Shuffle', { icon: 'shuffle', onclick: () => shufflePlay(series.Id, 'Episode') }),
       trailerBtn(series),
-      ...toggleBtns(series, () => load(true)),
+      moreBtn(series, () => load(true)),
+      ...stateChips(series),
     ];
 
     const memory = trackMemory(series);
     const top = hero(series, { actions, extra: memory });
 
     const tabs = h('div', { class: 'season-tabs' });
-    const list = h('div', { class: 'episode-list' });
+    const tabList = h('div', { role: 'tablist', 'aria-label': 'Seasons', style: { display: 'contents' } });
+    const list = h('ul', { class: 'episode-list', role: 'tabpanel', 'aria-label': 'Episodes' });
     const seasonBtn = (s) => {
       const played = !!s.UserData?.Played;
       return button(played ? 'Mark season unwatched' : 'Mark season watched', {
@@ -238,26 +258,41 @@ export function itemView({ id, seasonId }) {
         },
       });
     };
-    const renderTabs = () => tabs.replaceChildren(...seasons.map((s) => h('button', {
-      class: `season-tab ${s.Id === selectedSeason ? 'active' : ''}`,
-      onclick: () => {
-        selectedSeason = s.Id;
-        renderTabs();
-        loadEpisodes();
-      },
-    }, s.Name, s.UserData?.UnplayedItemCount ? h('span', { class: 'tab-count' }, s.UserData.UnplayedItemCount) : null)),
-    ...seasons.filter((s) => s.Id === selectedSeason).map(seasonBtn));
+    const pick = (s, focus) => {
+      selectedSeason = s.Id;
+      renderTabs();
+      loadEpisodes();
+      if (focus) tabList.querySelector(`[data-id="${s.Id}"]`)?.focus();
+    };
+    // A real tab list: one tab stop, arrow keys move between seasons.
+    const renderTabs = () => {
+      fill(tabList, seasons.map((s, i) => h('button', {
+        class: 'season-tab',
+        role: 'tab',
+        dataset: { id: s.Id },
+        'aria-selected': String(s.Id === selectedSeason),
+        tabindex: s.Id === selectedSeason ? 0 : -1,
+        onclick: () => pick(s),
+        onkeydown: (e) => {
+          const n = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: seasons.length - 1 }[e.key];
+          if (n === undefined) return;
+          e.preventDefault();
+          pick(seasons[(n + seasons.length) % seasons.length], true);
+        },
+      }, s.Name, s.UserData?.UnplayedItemCount ? h('span', { class: 'tab-count', 'aria-label': `${s.UserData.UnplayedItemCount} unwatched` }, s.UserData.UnplayedItemCount) : null)));
+      fill(tabs, tabList, seasons.filter((s) => s.Id === selectedSeason).map(seasonBtn));
+    };
 
     async function loadEpisodes() {
       const season = selectedSeason;
-      list.replaceChildren(spinner());
+      list.replaceChildren(h('li', null, spinner()));
       try {
         const eps = await api.episodes(series.Id, { seasonId: season });
         if (season !== selectedSeason || my !== token) return;
         list.replaceChildren(...eps.map((ep) => episodeRow(ep, () => load(true))));
-        if (!eps.length) list.replaceChildren(h('div', { class: 'empty' }, 'No episodes in this season.'));
+        if (!eps.length) list.replaceChildren(h('li', { class: 'empty' }, 'No episodes in this season.'));
       } catch (err) {
-        list.replaceChildren(errorBox(err, loadEpisodes));
+        list.replaceChildren(h('li', null, errorBox(err, loadEpisodes)));
       }
     }
 
@@ -297,7 +332,8 @@ export function itemView({ id, seasonId }) {
     const pct = ud.PlayedPercentage && !ud.Played ? ud.PlayedPercentage : 0;
     const img = landscapeUrl(ep, 480);
     const aired = ep.PremiereDate ? new Date(ep.PremiereDate).toLocaleDateString() : '';
-    const rowEl = h('div', { class: `episode ${ud.Played ? 'played' : ''}` },
+    const label = [`Episode ${ep.IndexNumber ?? ''}`, ep.Name, isNewItem(ep) ? 'new' : '', ud.Played ? 'watched' : pct ? `${Math.round(pct)}% played` : ''].filter(Boolean).join(', ');
+    const rowEl = h('li', { class: `episode ${ud.Played ? 'played' : ''}`, tabindex: 0, 'aria-label': label },
       h('div', {
         class: 'ep-thumb',
         onclick: (e) => {
@@ -305,14 +341,14 @@ export function itemView({ id, seasonId }) {
           openPlayer(ep.Id);
         },
       },
-      img ? h('img', { src: img, loading: 'lazy', alt: '' }) : h('div', { class: 'card-fallback' }, icon('tv')),
+      img ? fadeImg(img) : h('div', { class: 'card-fallback' }, icon('tv')),
       h('div', { class: 'ep-play' }, icon('play')),
       pct ? h('div', { class: 'progress' }, h('div', { style: { width: pct + '%' } })) : null),
       h('div', { class: 'ep-body' },
         h('div', { class: 'ep-title' },
           h('span', { class: 'ep-num' }, ep.IndexNumber != null ? `${ep.IndexNumber}.` : ''),
           ep.Name,
-          isNewItem(ep) ? h('span', { class: 'pill-new' }, 'NEW') : null),
+          isNewItem(ep) ? h('span', { class: 'pill-new', 'aria-hidden': 'true' }, 'New') : null),
         h('div', { class: 'ep-meta' }, [formatRuntime(ep.RunTimeTicks), aired, ep.CommunityRating ? `★ ${ep.CommunityRating.toFixed(1)}` : '']
           .filter(Boolean).join(' · ')),
         ep.Overview ? h('div', { class: 'ep-overview clamp-2' }, ep.Overview) : null),
@@ -328,10 +364,49 @@ export function itemView({ id, seasonId }) {
         }, `round small ${ud.Played ? 'on' : ''}`)));
     rowEl.addEventListener('click', () => navigate('item', { id: ep.Id }));
     rowEl.addEventListener('contextmenu', (e) => itemMenu(ep, e));
+    // Enter opens the episode, Space plays it, the Menu key opens the menu.
+    rowEl.addEventListener('keydown', (e) => {
+      if (e.target !== rowEl) return;
+      if (e.key === 'Enter') navigate('item', { id: ep.Id });
+      else if (e.key === ' ') {
+        e.preventDefault();
+        openPlayer(ep.Id);
+      } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+        e.preventDefault();
+        const r = rowEl.getBoundingClientRect();
+        itemMenu(ep, { preventDefault() {}, stopPropagation() {}, currentTarget: rowEl, clientX: r.left + 40, clientY: r.top + 20 });
+      }
+    });
     return rowEl;
   }
 
   // ---------- collections / folders ----------
+
+  // A person (from search or the cast row): their movies and shows in this library.
+  async function renderPerson(item, my) {
+    const res = await api.items({
+      PersonIds: item.Id,
+      Recursive: true,
+      IncludeItemTypes: 'Movie,Series',
+      SortBy: 'ProductionYear,SortName',
+      SortOrder: 'Descending',
+      Fields: 'PrimaryImageAspectRatio,ProductionYear',
+      EnableImageTypes: 'Primary,Thumb,Backdrop',
+    });
+    if (my !== token) return null;
+    const items = res?.Items || [];
+    const photo = item.ImageTags?.Primary ? api.image(item.Id, 'Primary', { tag: item.ImageTags.Primary, maxWidth: 400 }) : null;
+    return [
+      h('header', { class: 'person-head' },
+        photo ? h('img', { class: 'person-photo', src: photo, alt: '' }) : h('div', { class: 'person-photo person-fallback' }, item.Name[0]),
+        h('div', { class: 'hero-info' },
+          h('h1', null, item.Name),
+          item.Overview ? h('p', { class: 'overview clamp-3' }, item.Overview) : null)),
+      h('section', { class: 'collection-grid' },
+        h('h2', null, items.length ? `In your library (${items.length})` : 'Nothing with them in your library'),
+        h('div', { class: 'grid size-m portrait' }, items.map((i) => itemCard(i)))),
+    ];
+  }
 
   async function renderCollection(item, my) {
     const res = await api.items({
@@ -343,7 +418,7 @@ export function itemView({ id, seasonId }) {
     if (my !== token) return null;
     const items = res?.Items || [];
     return [
-      hero(item, { actions: toggleBtns(item, () => load(true)) }),
+      hero(item, { actions: [moreBtn(item, () => load(true)), ...stateChips(item)] }),
       h('section', { class: 'collection-grid' },
         h('h2', null, `${items.length} item${items.length === 1 ? '' : 's'}`),
         h('div', { class: 'grid size-m portrait' }, items.map((i) => itemCard(i)))),
@@ -351,11 +426,12 @@ export function itemView({ id, seasonId }) {
   }
 
   load();
-  return {
+  const self = {
     el,
     onShow: () => load(true),
     destroy() {
       token++;
     },
   };
+  return self;
 }

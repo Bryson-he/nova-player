@@ -25,11 +25,14 @@ interface NovaBridge {
   setFullscreen(value?: boolean): Promise<boolean>;
   setDarkOverlay(dark: boolean): void;
   setMini(on: boolean): Promise<boolean>;
+  setZoom(factor: number): void;
+  accentColor(): Promise<string | null>;
+  discoverServers(): Promise<{ id: string; name: string; url: string }[]>;
   openExternal(url: string): void;
   saveScreenshot(bytes: ArrayBuffer | ArrayBufferView, name: string): Promise<string>;
   showInFolder(file: string): void;
 
-  appInfo(): Promise<{ version: string; homepage: string }>;
+  appInfo(): Promise<{ version: string; homepage: string; mica: boolean }>;
   closeReady(): void;
   updateState(): Promise<Record<string, unknown>>;
   checkForUpdates(): Promise<Record<string, unknown>>;
@@ -38,6 +41,10 @@ interface NovaBridge {
   onFullscreen(cb: (value: boolean) => void): () => void;
   onUpdate(cb: (state: Record<string, unknown>) => void): () => void;
   onBeforeClose(cb: () => void): () => void;
+  onTaskbarAction(cb: (action: 'prev' | 'toggle' | 'next') => void): () => void;
+  onPlayRequest(cb: (itemId: string) => void): () => void;
+  taskbar(state: { playing: boolean; progress: number; hasPrev?: boolean; hasNext?: boolean } | null): void;
+  setJumpList(items: { id: string; title: string }[]): void;
 }
 
 interface Window {

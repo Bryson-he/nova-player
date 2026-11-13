@@ -1,0 +1,47 @@
+/* Reset, type, focus and the few utilities every screen uses. */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: var(--fs-body)/var(--lh-body) var(--font); overflow: hidden; }
+/* Windows 11: the window shows Mica behind the title bar and sidebar. */
+html.mica, html.mica body { background: transparent; }
+body { -webkit-font-smoothing: antialiased; user-select: none; }
+button { font: inherit; color: inherit; }
+img { display: block; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; }
+p { margin: 0; }
+
+.hidden { display: none !important; }
+.muted { color: var(--text-2); }
+.small { font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.clamp-2, .clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-2 { -webkit-line-clamp: 2; }
+.clamp-3 { -webkit-line-clamp: 3; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.icon { width: 20px; height: 20px; fill: currentColor; flex: none; }
+
+/* One focus ring for everything, keyboard only. */
+:focus { outline: none; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: var(--r-m); }
+
+::selection { background: var(--accent); color: var(--on-accent); }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: var(--r-full); border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.22); }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
+
+/* Windows contrast themes: real borders instead of shadows and fills. */
+@media (forced-colors: active) {
+  .btn, .icon-btn, .card-img, .menu, .modal, .toast, .settings-pane, .input, .select { border: 1px solid CanvasText; }
+  :focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+  .nav-link.active, .season-tab[aria-selected='true'] { outline: 2px solid Highlight; }
+}
+
+/* Settings → Appearance → Reduce transparency: no blur, solid panels. */
+.reduce-transparency * { backdrop-filter: none !important; }
+.reduce-transparency { --glass: #17171a; }

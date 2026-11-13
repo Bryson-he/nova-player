@@ -1,14 +1,16 @@
 'use strict';
 const {
-  app, BrowserWindow, ipcMain, protocol, net, session, safeStorage, shell, powerSaveBlocker, screen, Menu, dialog,
+  app, BrowserWindow, ipcMain, protocol, net, session, safeStorage, shell, powerSaveBlocker, screen, Menu, dialog, systemPreferences, nativeTheme,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const dgram = require('dgram');
 const { pathToFileURL } = require('url');
 const {
   isInside, originOf, isPrivateHost, isEncrypted, serverCandidates, safeFileName, validStoreWrite, MAX_STORE_BYTES, buildCsp,
 } = require('./security');
 const { CHANNELS } = require('./ipc-contract');
+const { setTaskbarState, setContinueWatching, playArg } = require('./taskbar');
 
 // NOVA_PROFILE runs a separate, isolated profile (handy for testing a second server).
 if (process.env.NOVA_PROFILE) {
@@ -23,11 +25,22 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
-const ICON = path.join(__dirname, '..', '..', 'build', 'icon.png');
+const ICON = path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const APP_ORIGIN = 'app://nova';
 const DEBUG = !!process.env.NOVA_DEBUG;
 const CLIENT_NAME = 'Nova Player';
 const DEVICE_NAME = 'Windows PC';
+
+// Window colours come from the design tokens (src/renderer/styles/tokens.css).
+const BG = '#0e0e10';
+const TEXT = '#f2f2f3';
+const TITLEBAR_HEIGHT = 48;
+// Mica needs Windows 11 (build 22000+); Windows 10 gets the solid background.
+const IS_WIN11 = process.platform === 'win32' && Number(process.getSystemVersion().split('.')[2]) >= 22000;
+const useMica = () => IS_WIN11 && store.settings?.reduceTransparency !== true;
+const overlayColors = (dark) => (dark
+  ? { color: '#000000', symbolColor: '#ffffff' }
+  : { color: useMica() ? '#00000000' : BG, symbolColor: TEXT });
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
@@ -179,10 +192,11 @@ function createWindow() {
     minHeight: 580,
     show: false,
     title: 'Nova Player',
-    backgroundColor: '#0b0d12',
+    backgroundColor: useMica() ? '#00000000' : BG,
+    ...(useMica() ? { backgroundMaterial: 'mica' } : {}),
     icon: fs.existsSync(ICON) ? ICON : undefined,
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0b0d12', symbolColor: '#e6e8ef', height: 40 },
+    titleBarOverlay: { ...overlayColors(false), height: TITLEBAR_HEIGHT },
     webPreferences: {
       preload: path.join(__dirname, 'generated', 'preload.js'),
       contextIsolation: true,
@@ -260,6 +274,48 @@ function createWindow() {
 }
 let closeWaiter = null;
 
+// Jellyfin answers a UDP broadcast on port 7359 with its name and address.
+function discoverServers(timeout = 1500) {
+  return new Promise((resolve) => {
+    const found = new Map();
+    let sock;
+    const done = () => {
+      try {
+        sock?.close();
+      } catch {
+        // already closed
+      }
+      resolve([...found.values()]);
+    };
+    try {
+      sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    } catch {
+      resolve([]);
+      return;
+    }
+    sock.on('error', done);
+    sock.on('message', (msg) => {
+      try {
+        const j = JSON.parse(msg.toString('utf8'));
+        const url = typeof j.Address === 'string' && originOf(j.Address) ? j.Address.replace(/\/+$/, '') : null;
+        if (j.Id && url) found.set(String(j.Id), { id: String(j.Id).slice(0, 64), name: String(j.Name || '').slice(0, 100), url });
+      } catch {
+        // not a Jellyfin reply
+      }
+    });
+    sock.bind(0, () => {
+      try {
+        sock.setBroadcast(true);
+        sock.send('who is JellyfinServer?', 7359, '255.255.255.255');
+      } catch {
+        done();
+        return;
+      }
+      setTimeout(done, timeout);
+    });
+  });
+}
+
 // External links open in the browser: HTTPS only, and anything outside a
 // short list of well-known sites asks first, showing the host.
 const KNOWN_HOSTS = ['youtube.com', 'youtu.be', 'github.com', 'jellyfin.org', 'imdb.com', 'themoviedb.org', 'thetvdb.com', 'bryson-he.github.io'];
@@ -295,10 +351,11 @@ function registerProtocol() {
     const file = path.join(RENDERER_DIR, rel);
     if (!isInside(RENDERER_DIR, file)) return new Response('Forbidden', { status: 403 });
     const res = await net.fetch(pathToFileURL(file).toString());
-    if (!file.endsWith('.html')) return res;
-    // The policy names the signed-in server, so it is sent per load, not baked into the file.
     const headers = new Headers(res.headers);
-    headers.set('Content-Security-Policy', buildCsp(auth.token ? auth.origin : null));
+    // Never serve app files from cache: after an update the same paths hold new code.
+    headers.set('Cache-Control', 'no-cache');
+    // The policy names the signed-in server, so it is sent per load, not baked into the file.
+    if (file.endsWith('.html')) headers.set('Content-Security-Policy', buildCsp(auth.token ? auth.origin : null));
     return new Response(res.body, { status: res.status, headers });
   });
 }
@@ -341,11 +398,13 @@ function installNetworkHooks() {
   });
 }
 
-// Electron's default is to grant whatever a page asks for. Nova only needs fullscreen.
+// Electron's default is to grant whatever a page asks for. Nova only needs
+// fullscreen and writing to the clipboard ("Copy details").
+const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write']);
 function installPermissionHandlers() {
   const ses = session.defaultSession;
-  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'fullscreen'));
-  ses.setPermissionCheckHandler((_wc, permission) => permission === 'fullscreen');
+  ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ALLOWED_PERMISSIONS.has(permission)));
+  ses.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
 }
 
 // Every handler goes through the contract: the sender must be our own page
@@ -378,7 +437,7 @@ function handle(channel, fn) {
 
 function registerIpc() {
   handle('store:get', () => {
-    const { token: _t, tokenBase: _b, window: _w, ...rest } = store;
+    const { token: _t, tokenBase: _b, window: _w, cachedVersion: _c, ...rest } = store;
     let serverInsecure = false;
     try {
       const u = new URL(store.server?.url);
@@ -426,8 +485,11 @@ function registerIpc() {
         lastErr = err;
       }
     }
-    return { error: `Couldn't find a Jellyfin server at "${input.trim()}". ${lastErr ? describe(lastErr) : ''}`.trim() };
+    const why = lastErr ? ` (${describe(lastErr)})` : '';
+    return { error: `Couldn't reach a Jellyfin server at "${input.trim()}"${why}. Check the address and port, and that the server is running.` };
   });
+
+  handle('server:discover', () => discoverServers());
 
   handle('auth:signIn', async (_e, req) => {
     const base = req.base.replace(/\/+$/, '');
@@ -475,15 +537,26 @@ function registerIpc() {
   handle('win:overlay', (_e, dark) => {
     if (!win || win.isDestroyed()) return;
     try {
-      win.setTitleBarOverlay(dark
-        ? { color: '#000000', symbolColor: '#ffffff' }
-        : { color: '#0b0d12', symbolColor: '#e6e8ef' });
+      win.setTitleBarOverlay(overlayColors(dark));
     } catch {
       // Not supported on this platform.
     }
   });
 
   handle('open-external', (_e, url) => openExternalSafe(url));
+
+  handle('win:zoom', (_e, factor) => {
+    if (win && !win.isDestroyed()) win.webContents.setZoomFactor(factor);
+  });
+
+  // Windows accent colour as #rrggbb, for Settings → Appearance.
+  handle('app:accent', () => {
+    try {
+      return '#' + systemPreferences.getAccentColor().slice(0, 6);
+    } catch {
+      return null;
+    }
+  });
 
   // Screenshots go to Pictures\Nova Player.
   const shotsDir = () => path.join(app.getPath('pictures'), 'Nova Player');
@@ -531,8 +604,11 @@ function registerIpc() {
   handle('app:info', () => ({
     version: app.getVersion(),
     homepage: require('../../package.json').homepage,
+    mica: useMica(),
   }));
   handle('app:close-ready', () => closeWaiter?.());
+  handle('taskbar:state', (_e, state) => setTaskbarState(win, state));
+  handle('taskbar:jumplist', (_e, items) => setContinueWatching(items));
   handle('update:state', () => updateState);
   handle('update:check', () => checkForUpdates(true));
   handle('update:install', () => {
@@ -593,6 +669,8 @@ async function checkForUpdates(manual) {
     return updateState;
   }
   if (['downloading', 'ready'].includes(updateState.state)) return updateState;
+  // Settings → Updates → Get beta versions.
+  autoUpdater.allowPrerelease = store.settings?.betaUpdates === true;
   try {
     await autoUpdater.checkForUpdates();
   } catch (err) {
@@ -601,22 +679,36 @@ async function checkForUpdates(manual) {
   return updateState;
 }
 
-app.on('second-instance', () => {
+// A second launch (including from the jump list) focuses this window, and
+// plays the item if it came with --nova-play.
+app.on('second-instance', (_e, argv) => {
   if (win) {
     if (win.isMinimized()) win.restore();
     win.focus();
+    const id = playArg(argv);
+    if (id) win.webContents.send('app:play', id);
   }
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Nova is dark whatever the Windows theme, so Mica and the caption buttons use their dark versions.
+  nativeTheme.themeSource = 'dark';
   if (app.isPackaged && !DEBUG) Menu.setApplicationMenu(null); // no reload / devtools shortcuts
   loadStore();
+  // A new version may reuse the same file paths; drop anything cached by the old one.
+  if (store.cachedVersion !== app.getVersion()) {
+    await session.defaultSession.clearCache().catch(() => {});
+    store.cachedVersion = app.getVersion();
+    scheduleSave();
+  }
   loadAuth();
   registerProtocol();
   installNetworkHooks();
   installPermissionHandlers();
   registerIpc();
   createWindow();
+  const firstPlay = playArg(process.argv);
+  if (firstPlay) win.webContents.once('did-finish-load', () => setTimeout(() => win.webContents.send('app:play', firstPlay), 1500));
   setupUpdater();
 });
 

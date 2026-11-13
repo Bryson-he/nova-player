@@ -71,7 +71,12 @@ test('safeFileName strips bad characters and reserved names', () => {
 
 test('store writes are limited to known keys with the right shape', () => {
   assert.deepEqual(Object.keys(STORE_KEYS).sort(), ['deviceId', 'lastUsername', 'lastVersion', 'librarySort', 'muted',
-    'seriesTracks', 'server', 'settings', 'subDelays', 'user', 'volume'].sort());
+    'recentSearches', 'seriesTracks', 'server', 'servers', 'settings', 'subDelays', 'user', 'volume'].sort());
+  assert.ok(validStoreWrite('servers', [{ url: 'http://192.168.1.20:8096', name: 'Home', id: 'abc' }]));
+  assert.ok(!validStoreWrite('servers', [{ url: 'file:///C:/x' }]));
+  assert.ok(!validStoreWrite('servers', Array.from({ length: 11 }, () => ({ url: 'https://a.example' }))));
+  assert.ok(validStoreWrite('recentSearches', ['dracula', 'king lear']));
+  assert.ok(!validStoreWrite('recentSearches', [42]));
   assert.ok(validStoreWrite('volume', 0.5));
   assert.ok(!validStoreWrite('volume', 2));
   assert.ok(validStoreWrite('muted', false));

@@ -1,7 +1,7 @@
 {
   "name": "nova-player",
   "productName": "Nova Player",
-  "version": "1.4.0",
+  "version": "2.0.0-beta.1",
   "description": "A fast, modern Jellyfin client for Windows",
   "author": "Bryson",
   "license": "MIT",
@@ -20,14 +20,17 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.js test/*.test.mjs",
     "check": "npm run lint && npm run typecheck && npm test",
-    "format": "prettier --write src/main test scripts"
+    "format": "prettier --write src/main test scripts",
+    "icons": "node scripts/build-icons.js"
   },
   "build": {
     "appId": "com.nova.jellyfinplayer",
     "productName": "Nova Player",
     "files": [
       "src/**/*",
+      "!src/renderer/js/nova.d.ts",
       "build/icon.png",
+      "build/icon.ico",
       "package.json"
     ],
     "directories": {
@@ -50,7 +53,7 @@
       }
     ],
     "win": {
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -64,6 +67,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@resvg/resvg-js": "2.6.2",
     "electron": "^45.0.0",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",

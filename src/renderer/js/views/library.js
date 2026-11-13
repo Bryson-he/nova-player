@@ -2,7 +2,7 @@
 // and restored every time you come back (and across app restarts).
 import { api, CARD_FIELDS } from '../api.js';
 import { store } from '../store.js';
-import { h, icon, iconBtn, itemCard, select, spinner, errorBox } from '../ui.js';
+import { h, icon, itemCard, errorBox, popupMenu, button, fill, skeletonRows } from '../ui.js';
 import { scroller } from '../router.js';
 import { shufflePlay } from '../player.js';
 import { refreshNewEpisodes } from '../newcontent.js';
@@ -27,7 +27,7 @@ const FILTERS = [
   ['IsUnplayed', 'Unwatched'],
   ['IsPlayed', 'Watched'],
   ['IsResumable', 'In progress'],
-  ['IsFavorite', 'Favorites'],
+  ['IsFavorite', 'Favourites'],
 ];
 
 function typesFor(collectionType) {
@@ -51,84 +51,120 @@ export function libraryView({ id, name, collectionType }) {
     genre: saved.genre || '',
     size: saved.size || 'm',
   };
+  let genres = [];
+  let letter = '';
 
   const persist = () => store.set('librarySort', { ...(store.get('librarySort') || {}), [id]: { ...state } });
 
   const countEl = h('span', { class: 'lib-count' });
-  const grid = h('div', { class: `grid size-${state.size} ${cfg.shape}` });
+  const grid = h('div', { class: `grid size-${state.size} ${cfg.shape}`, role: 'list', 'aria-label': name });
   const sentinel = h('div', { class: 'sentinel' });
   const status = h('div', { class: 'lib-status' });
+  const live = h('div', { class: 'sr-only', role: 'status' });
 
-  const orderBtn = iconBtn(state.sortOrder === 'Ascending' ? 'arrowUp' : 'arrowDown', 'Toggle sort order', () => {
-    state.sortOrder = state.sortOrder === 'Ascending' ? 'Descending' : 'Ascending';
-    orderBtn.replaceChildren(icon(state.sortOrder === 'Ascending' ? 'arrowUp' : 'arrowDown'));
-    persist();
-    reset();
-  }, 'order-btn');
-
-  const genreSelect = select([['', 'All genres']], state.genre, (v) => {
-    state.genre = v;
-    persist();
-    reset();
+  // One Sort menu: the field and the direction together.
+  const sortBtn = button('', {
+    icon: 'tune', cls: 'small-btn btn-quiet', onclick: () => popupMenu(sortBtn, [
+      { header: 'Sort by' },
+      ...cfg.sorts.map(([v, label]) => ({ label, checked: v === state.sortBy, onClick: () => { state.sortBy = v; changed(); } })),
+      { divider: true },
+      { label: 'Ascending', checked: state.sortOrder === 'Ascending', onClick: () => { state.sortOrder = 'Ascending'; changed(); } },
+      { label: 'Descending', checked: state.sortOrder === 'Descending', onClick: () => { state.sortOrder = 'Descending'; changed(); } },
+    ]),
   });
+  sortBtn.setAttribute('aria-haspopup', 'menu');
 
-  const sizeBtns = h('div', { class: 'segmented' }, [['s', 'S'], ['m', 'M'], ['l', 'L']].map(([v, label]) =>
+  const filterBtn = button('Filter', {
+    icon: 'filter', cls: 'small-btn btn-quiet', onclick: () => popupMenu(filterBtn, [
+      { header: 'Show' },
+      ...FILTERS.map(([v, label]) => ({ label, checked: v === state.filter, onClick: () => { state.filter = v; changed(); } })),
+      ...(genres.length ? [
+        { divider: true },
+        { header: 'Genre' },
+        ...[['', 'All genres'], ...genres.map((g) => [g.Id, g.Name])].map(([v, label]) => ({
+          label, checked: v === state.genre, onClick: () => { state.genre = v; changed(); },
+        })),
+      ] : []),
+    ]),
+  });
+  filterBtn.setAttribute('aria-haspopup', 'menu');
+
+  const sizeBtns = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Card size' }, [['s', 'S', 'Small'], ['m', 'M', 'Medium'], ['l', 'L', 'Large']].map(([v, label, full]) =>
     h('button', {
       class: state.size === v ? 'active' : '',
-      title: 'Card size',
+      title: `${full} cards`,
+      'aria-label': `${full} cards`,
+      'aria-pressed': String(state.size === v),
       onclick: (e) => {
         state.size = v;
         persist();
         grid.className = `grid size-${v} ${cfg.shape}`;
-        for (const b of sizeBtns.children) b.classList.toggle('active', b === e.currentTarget);
+        for (const b of sizeBtns.children) {
+          b.classList.toggle('active', b === e.currentTarget);
+          b.setAttribute('aria-pressed', String(b === e.currentTarget));
+        }
       },
     }, label)));
 
   // A–Z jump bar. Only meaningful (and shown) when sorting by name.
-  let letter = '';
-  const letters = h('div', { class: 'az-bar' }, ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((l) => h('button', {
+  const letters = h('div', { class: 'az-bar', role: 'group', 'aria-label': 'Jump to letter' }, ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((l) => h('button', {
     class: l === '#' ? 'active' : '',
     title: l === '#' ? 'Show all' : `Jump to ${l}`,
-    onclick: (e) => {
-      letter = l === '#' ? '' : l;
-      for (const b of letters.children) b.classList.toggle('active', b === e.currentTarget);
-      reset();
+    'aria-label': l === '#' ? 'Show all' : `Starts with ${l}`,
+    onclick: () => {
+      setLetter(l === '#' ? '' : l);
+      changed();
     },
   }, l)));
+  function setLetter(l) {
+    letter = l;
+    for (const b of letters.children) b.classList.toggle('active', b.textContent === (l || '#'));
+  }
   const syncLetters = () => {
     letters.classList.toggle('hidden', state.sortBy !== 'SortName');
-    if (state.sortBy !== 'SortName' && letter) {
-      letter = '';
-      for (const b of letters.children) b.classList.toggle('active', b.textContent === '#');
-    }
+    if (state.sortBy !== 'SortName' && letter) setLetter('');
   };
+
+  // Active filters as removable chips beside the title.
+  const chips = h('div', { class: 'lib-chips', role: 'group', 'aria-label': 'Active filters' });
+  function renderChips() {
+    const chip = (label, clear) => h('button', { class: 'chip', 'aria-label': `Remove filter: ${label}`, onclick: () => { clear(); changed(); } }, label, icon('close'));
+    fill(chips,
+      state.filter !== 'all' ? chip(FILTERS.find(([v]) => v === state.filter)?.[1], () => { state.filter = 'all'; }) : null,
+      state.genre ? chip(genres.find((g) => g.Id === state.genre)?.Name || 'Genre', () => { state.genre = ''; }) : null,
+      letter ? chip(`Starts with ${letter}`, () => setLetter('')) : null);
+    fill(sortBtn, icon('tune'), h('span', null, `${cfg.sorts.find(([v]) => v === state.sortBy)?.[1] || 'Name'} ${state.sortOrder === 'Ascending' ? '↑' : '↓'}`));
+    sortBtn.setAttribute('aria-label', `Sort: ${cfg.sorts.find(([v]) => v === state.sortBy)?.[1]}, ${state.sortOrder.toLowerCase()}`);
+  }
+
+  function changed() {
+    persist();
+    syncLetters();
+    renderChips();
+    reset();
+  }
+
+  function clearFilters() {
+    state.filter = 'all';
+    state.genre = '';
+    setLetter('');
+    changed();
+  }
 
   const shuffleTypes = cfg.types === 'Series' ? 'Episode' : cfg.types;
 
   const toolbar = h('div', { class: 'lib-toolbar' },
-    h('div', { class: 'lib-title' }, h('h1', null, name), countEl,
-      h('button', { class: 'btn btn-secondary small-btn', title: 'Play random items from this library', onclick: () => shufflePlay(id, shuffleTypes) },
-        icon('shuffle'), h('span', null, 'Shuffle'))),
+    h('div', { class: 'lib-title' }, h('h1', null, name), countEl, chips),
     h('div', { class: 'lib-controls' },
-      h('label', { class: 'ctl' }, icon('tune'),
-        select(cfg.sorts, state.sortBy, (v) => {
-          state.sortBy = v;
-          persist();
-          syncLetters();
-          reset();
-        })),
-      orderBtn,
-      select(FILTERS, state.filter, (v) => {
-        state.filter = v;
-        persist();
-        reset();
-      }),
-      genreSelect,
-      sizeBtns),
+      sortBtn,
+      filterBtn,
+      sizeBtns,
+      button('Shuffle', { icon: 'shuffle', cls: 'small-btn', title: 'Play random items from this library', onclick: () => shufflePlay(id, shuffleTypes) })),
     letters);
   syncLetters();
+  renderChips();
 
-  const el = h('div', { class: 'page library' }, toolbar, grid, status, sentinel);
+  const el = h('div', { class: 'page library' }, toolbar, live, grid, status, sentinel);
 
   let loaded = 0;
   let total = Infinity;
@@ -139,7 +175,7 @@ export function libraryView({ id, name, collectionType }) {
     if (loading || loaded >= total) return;
     loading = true;
     const my = token;
-    if (!loaded) status.replaceChildren(spinner());
+    if (!loaded) status.replaceChildren(skeletonRows(1, cfg.shape));
     if (!loaded && cfg.types.includes('Series')) await refreshNewEpisodes();
     try {
       const res = await api.items({
@@ -165,9 +201,17 @@ export function libraryView({ id, name, collectionType }) {
       total = res?.TotalRecordCount ?? loaded + items.length;
       loaded += items.length;
       if (!items.length) total = loaded;
-      grid.append(...items.map((it) => itemCard(it, { shape: cfg.shape, showSeries: true })));
-      countEl.textContent = `${total.toLocaleString()} item${total === 1 ? '' : 's'}`;
-      status.replaceChildren(total === 0 ? h('div', { class: 'empty' }, 'No items match these filters.') : '');
+      grid.append(...items.map((it) => h('div', { role: 'listitem' }, itemCard(it, { shape: cfg.shape, showSeries: true }))));
+      const count = `${total.toLocaleString()} item${total === 1 ? '' : 's'}`;
+      countEl.textContent = count;
+      if (loaded === items.length) live.textContent = count;
+      const filtered = state.filter !== 'all' || state.genre || letter;
+      fill(status, total === 0
+        ? h('div', { class: 'empty' },
+          icon('filter'),
+          h('p', null, filtered ? 'Nothing matches these filters.' : 'This library is empty.'),
+          filtered ? button('Clear filters', { variant: 'primary', onclick: clearFilters }) : null)
+        : null);
     } catch (err) {
       if (my === token) status.replaceChildren(errorBox(err, () => { loading = false; loadPage(); }));
     } finally {
@@ -199,15 +243,16 @@ export function libraryView({ id, name, collectionType }) {
   }, { root: scroller(), rootMargin: '1200px 0px' });
   observer.observe(sentinel);
 
-  api.genres(id, cfg.types).then((genres) => {
-    genreSelect.replaceChildren(...[['', 'All genres'], ...genres.map((g) => [g.Id, g.Name])].map(([v, label]) =>
-      h('option', { value: v, selected: v === state.genre }, label)));
+  api.genres(id, cfg.types).then((list) => {
+    genres = list;
+    renderChips();
   });
 
   loadPage();
 
   return {
     el,
+    title: name,
     destroy() {
       token++;
       observer.disconnect();
