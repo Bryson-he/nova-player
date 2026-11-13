@@ -68,15 +68,15 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@resvg/resvg-js": "2.6.2",
-    "electron": "^45.0.0",
+    "electron": "^45.2.3",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "eslint": "10.14.0",
     "globals": "17.14.0",
-    "hls.js": "^1.7.3",
-    "jassub": "^2.5.23",
+    "hls.js": "^1.7.4",
+    "jassub": "^2.5.37",
     "prettier": "3.10.1",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
