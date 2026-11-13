@@ -35,6 +35,7 @@ const CHANNELS = {
   'store:set': { kind: 'send', expose: 'set', args: [str(64), any] },
 
   'server:find': { kind: 'invoke', expose: 'findServer', args: [str(2048)] },
+  'server:discover': { kind: 'invoke', expose: 'discoverServers', args: [] },
   'auth:signIn': { kind: 'invoke', expose: 'signIn', args: [signIn] },
   'auth:signOut': { kind: 'invoke', expose: 'signOut', args: [] },
 

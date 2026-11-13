@@ -175,7 +175,7 @@ export function settingsView() {
   );
 
   updatePreview();
-  return { el, onShow: renderMemory, destroy: unsubUpdate };
+  return { el, title: 'Settings', onShow: renderMemory, destroy: unsubUpdate };
 }
 
 export function applySubtitleStyle(layer) {

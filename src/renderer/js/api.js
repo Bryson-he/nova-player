@@ -277,6 +277,13 @@ class Api {
     }, { signal });
   }
 
+  /** @param {string} term @param {AbortSignal} [signal] */
+  searchPeople(term, signal) {
+    return this.request('/Persons', {
+      query: { userId: this.userId, searchTerm: term, Limit: 20, EnableImageTypes: 'Primary', ImageTypeLimit: 1 }, signal,
+    }).then((r) => r?.Items || []).catch(() => []);
+  }
+
   setPlayed(id, played) {
     return this.tryPaths([`/UserPlayedItems/${id}`, `/Users/${this.userId}/PlayedItems/${id}`], {
       method: played ? 'POST' : 'DELETE', query: { userId: this.userId },

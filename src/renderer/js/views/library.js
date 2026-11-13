@@ -208,6 +208,7 @@ export function libraryView({ id, name, collectionType }) {
 
   return {
     el,
+    title: name,
     destroy() {
       token++;
       observer.disconnect();

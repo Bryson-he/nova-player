@@ -1,7 +1,8 @@
 // "What's new" window shown once after Nova updates itself. Notes are bundled
 // with the app, so it works offline and lists every version you skipped.
 import { store } from './store.js';
-import { h, icon, button } from './ui.js';
+import { h, button, novaMark } from './ui.js';
+import { trapFocus } from './dialog.js';
 
 export const NOTES = {
   '1.4.0': [
@@ -49,11 +50,14 @@ export function maybeShowWhatsNew(current) {
     : (NOTES[current] ? [current] : []);
   if (!versions.length) return;
 
-  const close = () => overlay.remove();
+  const close = () => {
+    release();
+    overlay.remove();
+  };
   const overlay = h('div', { class: 'modal-backdrop', onclick: (e) => e.target === overlay && close() },
-    h('div', { class: 'modal', role: 'dialog', 'aria-label': "What's new" },
+    h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': "What's new" },
       h('div', { class: 'modal-head' },
-        h('div', { class: 'brand-mark' }, icon('play')),
+        novaMark(),
         h('div', null,
           h('div', { class: 'modal-title' }, `What's new in Nova ${current}`),
           h('div', { class: 'modal-sub' }, last ? `Updated from ${last}` : 'Nova updated itself'))),
@@ -61,12 +65,6 @@ export function maybeShowWhatsNew(current) {
         versions.length > 1 ? h('h3', null, `Version ${v}`) : null,
         h('ul', null, NOTES[v].map((n) => h('li', null, n)))))),
       h('div', { class: 'modal-actions' }, button('Got it', { variant: 'primary', onclick: close }))));
-  const onKey = (e) => {
-    if (e.key === 'Escape' || e.key === 'Enter') {
-      close();
-      document.removeEventListener('keydown', onKey, true);
-    }
-  };
-  document.addEventListener('keydown', onKey, true);
   document.body.append(overlay);
+  const release = trapFocus(overlay, close);
 }

@@ -1,0 +1,92 @@
+/* Title bar, sidebar, content area and sign-in. */
+#app { height: 100%; display: flex; flex-direction: column; }
+
+/* ---- Title bar: Back, Forward, page title, search. Windows draws the caption buttons. */
+.titlebar { height: var(--titlebar); flex: none; display: flex; align-items: center; gap: var(--s-2); padding: 0 150px 0 var(--s-2); -webkit-app-region: drag; }
+.titlebar button, .titlebar input, .titlebar label { -webkit-app-region: no-drag; }
+.titlebar-nav { display: flex; gap: 2px; }
+.titlebar-title { font: 600 var(--fs-headline)/var(--lh-headline) var(--font); min-width: 0; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: var(--s-1); }
+.titlebar-search { flex: 1 1 240px; max-width: 420px; margin: 0 auto; display: flex; align-items: center; gap: var(--s-2); height: 34px; padding: 0 var(--s-2) 0 var(--s-3); background: var(--surface); border: 1px solid var(--surface-3); border-radius: var(--r-m); color: var(--text-2); transition: border-color var(--dur-1); }
+.titlebar-search:hover { border-color: #3a3a40; }
+.titlebar-search:focus-within { border-color: var(--accent); }
+.titlebar-search .icon { width: 16px; height: 16px; }
+.titlebar-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--text); font: inherit; user-select: text; }
+.titlebar-search input::placeholder { color: var(--text-3); }
+.titlebar-search input:focus-visible { box-shadow: none; }
+.kbd { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); border: 1px solid var(--surface-3); border-radius: var(--r-s); padding: 1px 6px; white-space: nowrap; }
+
+/* ---- Shell */
+.shell { flex: 1; display: flex; min-height: 0; }
+.sidebar { width: var(--sidebar); flex: none; display: flex; flex-direction: column; padding: var(--s-2) var(--s-3) var(--s-3); gap: var(--s-1); overflow-y: auto; overflow-x: hidden; }
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-label { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); padding: var(--s-4) var(--s-3) var(--s-1); }
+.nav-link { display: flex; align-items: center; gap: var(--s-3); min-height: 40px; padding: 0 var(--s-3); border: 0; background: none; border-radius: var(--r-m); cursor: pointer; color: var(--text-2); text-align: left; transition: background var(--dur-1), color var(--dur-1); }
+.nav-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-link:hover { background: var(--hover); color: var(--text); }
+.nav-link.active { background: var(--surface-2); color: var(--text); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
+.nav-empty { padding: var(--s-2) var(--s-3); color: var(--text-3); }
+.nav-spacer { flex: 1; min-height: var(--s-5); }
+
+.nav-user { display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 52px; padding: var(--s-1) var(--s-3); margin-top: var(--s-2); border: 0; border-top: 1px solid var(--separator); border-radius: 0; background: transparent; cursor: pointer; text-align: left; }
+.nav-user:hover { background: var(--hover); border-radius: var(--r-m); }
+.nav-user-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nav-user-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-user-server { font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insecure-lock { display: inline-flex; vertical-align: -2px; margin-right: var(--s-1); color: var(--rating); }
+.insecure-lock .icon { width: 13px; height: 13px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; }
+.avatar-letter { display: grid; place-items: center; background: var(--surface-3); font-weight: 600; color: var(--text); }
+
+.update-card { margin: var(--s-2) 0; padding: var(--s-3); border-radius: var(--r-m); background: var(--surface-2); display: flex; flex-direction: column; gap: var(--s-2); }
+.update-title { display: flex; align-items: center; gap: var(--s-2); font-weight: 600; font-size: var(--fs-callout); }
+.update-title .icon { width: 16px; height: 16px; color: var(--accent); }
+.update-bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.update-bar > div { height: 100%; background: var(--accent); transition: width var(--dur-3); }
+
+/* Below about 1,100 px the sidebar becomes an icon rail. */
+@media (max-width: 1100px) {
+  .sidebar { width: var(--rail); padding: var(--s-2); }
+  .nav-link { justify-content: center; padding: 0; }
+  .nav-link span, .nav-label, .nav-user-text, .update-card { display: none; }
+  .nav-user { justify-content: center; padding: var(--s-1) 0; }
+}
+
+.content { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; background: var(--surface); border-top-left-radius: var(--r-l); position: relative; }
+.page { padding: var(--s-5) var(--page-x) 60px; animation: rise-in var(--dur-2) var(--ease); }
+
+/* ---- Sign-in: a plain centred sheet */
+.login { position: fixed; inset: 0; display: grid; place-items: center; overflow-y: auto; }
+.login-drag { position: fixed; top: 0; left: 0; right: 0; height: var(--titlebar); -webkit-app-region: drag; }
+.login-panel { position: relative; width: min(420px, calc(100vw - 48px)); padding: var(--s-6); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-2); display: flex; flex-direction: column; gap: var(--s-3); }
+.login-head { text-align: center; margin-bottom: var(--s-2); display: flex; flex-direction: column; align-items: center; gap: var(--s-2); }
+.login-head h1 { font-size: var(--fs-title1); line-height: var(--lh-title1); }
+.login-head p { color: var(--text-2); word-break: break-word; }
+.login-secure { display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--fs-caption); line-height: var(--lh-caption); color: var(--text-2); }
+.login-secure .icon { width: 14px; height: 14px; }
+.login-secure.insecure { color: var(--rating); }
+.login-error { color: var(--danger); font-size: var(--fs-callout); line-height: var(--lh-callout); }
+.login-error:empty { display: none; }
+.login-split { display: flex; gap: var(--s-2); }
+.login-split > * { flex: 1; }
+.server-list { display: flex; flex-direction: column; gap: var(--s-1); }
+.server-list-label { font-size: var(--fs-caption); color: var(--text-2); }
+.server-item { display: flex; align-items: center; gap: var(--s-3); width: 100%; min-height: 48px; padding: var(--s-2) var(--s-3); border: 0; border-radius: var(--r-m); background: var(--surface-2); cursor: pointer; text-align: left; }
+.server-item:hover { background: var(--surface-3); }
+.server-item .icon { color: var(--text-2); }
+.server-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.server-item-text span:last-child { font-size: var(--fs-caption); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-tiles { display: flex; gap: var(--s-2); flex-wrap: wrap; justify-content: center; }
+.user-tile { display: flex; flex-direction: column; align-items: center; gap: var(--s-1); padding: var(--s-2); width: 88px; border: 0; background: transparent; border-radius: var(--r-m); cursor: pointer; }
+.user-tile:hover { background: var(--hover); }
+.user-tile .avatar { width: 48px; height: 48px; }
+.user-tile span { font-size: var(--fs-caption); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qc-code { font: 600 40px/1 var(--font-display); letter-spacing: 8px; text-align: center; padding: var(--s-4); border-radius: var(--r-l); background: var(--surface-2); user-select: text; }
+.qc-wait { display: flex; align-items: center; gap: var(--s-2); justify-content: center; color: var(--text-2); }
+
+/* The Nova mark: the Shell icon in one colour. */
+.nova-mark { width: 24px; height: 24px; color: var(--spot); flex: none; }
+.nova-mark.big { width: 56px; height: 56px; }
+
+.crash-page { max-width: 520px; margin: 18vh auto 0; padding: 0 var(--s-5); text-align: center; display: flex; flex-direction: column; gap: var(--s-3); align-items: center; }
+.crash-page h1 { font-size: var(--fs-title1); line-height: var(--lh-title1); }
+.crash-page p { color: var(--text-2); }

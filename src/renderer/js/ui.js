@@ -4,6 +4,7 @@ import { navigate, refreshCurrent } from './router.js';
 import { openPlayer, shufflePlay } from './player.js';
 import { store } from './store.js';
 import { newEpisodeCount } from './newcontent.js';
+import { blurCanvas } from './blurhash.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 
@@ -21,6 +22,7 @@ const ICONS = {
   fullscreen: 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z',
   fullscreenExit: 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z',
   back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
+  arrowForward: 'M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z',
   home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
   search: 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   settings: 'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z',
@@ -44,6 +46,11 @@ const ICONS = {
   download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
   shuffle: 'M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z',
   trailer: 'M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z',
+  lock: 'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
+  server: 'M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z',
+  keyboard: 'M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z',
+  palette: 'M12 3a9 9 0 0 0 0 18c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z',
+  bug: 'M20 8h-2.81a5.985 5.985 0 0 0-1.82-1.96L17 4.41 15.59 3l-2.17 2.17a6.002 6.002 0 0 0-2.83 0L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z',
   lockOpen: 'M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10z',
   doneAll: 'M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z',
 };
@@ -90,6 +97,26 @@ export function icon(name, cls = '') {
   return svg;
 }
 
+// The Nova mark (the Shell icon) in one colour: a disc with the play triangle
+// cut out, wrapped by a broken ring. Colour comes from CSS (currentColor).
+export function novaMark(cls = '') {
+  const svg = document.createElementNS(SVGNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 96 96');
+  svg.setAttribute('class', `nova-mark ${cls}`.trim());
+  svg.setAttribute('aria-hidden', 'true');
+  const disc = document.createElementNS(SVGNS, 'path');
+  disc.setAttribute('fill-rule', 'evenodd');
+  disc.setAttribute('fill', 'currentColor');
+  disc.setAttribute('d', 'M48 23a25 25 0 1 0 0 50a25 25 0 1 0 0-50ZM42 36.5v23a1.6 1.6 0 0 0 2.4 1.4l19.5-11.5a1.6 1.6 0 0 0 0-2.8L44.4 35.1a1.6 1.6 0 0 0-2.4 1.4Z');
+  const ring = document.createElementNS(SVGNS, 'circle');
+  for (const [k, v] of Object.entries({
+    cx: 48, cy: 48, r: 39, fill: 'none', stroke: 'currentColor', 'stroke-width': 6,
+    'stroke-linecap': 'round', 'stroke-dasharray': '186 59', transform: 'rotate(181 48 48)',
+  })) ring.setAttribute(k, v);
+  svg.append(disc, ring);
+  return svg;
+}
+
 export function iconBtn(name, title, onclick, cls = '') {
   return h('button', { class: `icon-btn ${cls}`.trim(), title, 'aria-label': title, onclick }, icon(name));
 }
@@ -98,28 +125,61 @@ export function button(label, { icon: ic, onclick, variant = 'secondary', cls = 
   return h('button', { class: `btn btn-${variant} ${cls}`.trim(), onclick, title }, ic && icon(ic), label && h('span', null, label));
 }
 
+// A spinner, shown only if loading takes longer than about 400 ms (CSS delay).
 export function spinner(text) {
-  return h('div', { class: 'loading' }, h('div', { class: 'spinner' }), text && h('div', { class: 'loading-text' }, text));
+  return h('div', { class: 'loading', role: 'status' }, h('div', { class: 'spinner', 'aria-hidden': 'true' }), h('div', { class: text ? 'loading-text' : 'sr-only' }, text || 'Loading'));
+}
+
+// Placeholder rows shaped like the content that is loading.
+export function skeletonRows(count = 3, shape = 'portrait') {
+  return h('div', { role: 'status', 'aria-label': 'Loading' }, Array.from({ length: count }, (_, n) => h('div', { class: 'skeleton-row', 'aria-hidden': 'true' },
+    h('div', { class: 'skeleton skeleton-title' }),
+    h('div', { class: 'skeleton-track' }, Array.from({ length: 8 }, () => h('div', { class: `skeleton skeleton-card ${n === 0 && shape === 'portrait' ? 'landscape' : shape}` }))))));
+}
+
+// Turns a raw error into a title that says what happened and what to try.
+function describeError(err) {
+  const msg = err?.message || String(err);
+  if (err?.status === 401) return ['You were signed out', 'Sign in again to continue.'];
+  if (err?.status === 404) return ["This isn't on the server any more", 'It may have been deleted or moved. Go back and refresh.'];
+  if (err?.status >= 500) return ['The server ran into a problem', `It answered "${msg}". Try again in a moment, or check the server's logs.`];
+  if (/timed out|reach server|Failed to fetch|network/i.test(msg)) return ["Can't reach your server", "Check that it's running and that this PC is online, then try again."];
+  return ["That didn't load", msg];
 }
 
 export function errorBox(err, retry) {
-  return h('div', { class: 'error-box' },
-    h('div', { class: 'error-title' }, 'Something went wrong'),
-    h('div', { class: 'error-msg' }, err?.message || String(err)),
-    retry && button('Try again', { onclick: retry, variant: 'primary' }));
+  const [title, hint] = describeError(err);
+  const details = `${err?.status ? err.status + ' ' : ''}${err?.message || String(err)}`;
+  return h('div', { class: 'error-box', role: 'alert' },
+    h('div', { class: 'error-title' }, title),
+    h('div', { class: 'error-msg' }, hint),
+    h('div', { class: 'error-actions' },
+      retry && button('Try again', { onclick: retry, variant: 'primary' }),
+      button('Copy details', { onclick: () => copyText(details, 'Details copied') })));
 }
 
-// action: optional { label, onClick } shown as a button inside the toast.
+export function copyText(text, done = 'Copied') {
+  navigator.clipboard.writeText(text).then(() => toast(done), () => toast("Couldn't copy to the clipboard", 'error'));
+}
+
+// Toasts are announced to screen readers. Errors stay until dismissed.
+// action: optional { label, onClick } shown as a button inside the toast (Undo, say).
 export function toast(msg, kind = 'info', ms = 3200, action = null) {
   const host = document.getElementById('toasts');
-  const t = h('div', { class: `toast toast-${kind}` }, msg,
-    action ? h('button', { class: 'toast-action', onclick: action.onClick }, action.label) : null);
-  host.append(t);
-  requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => {
+  host.setAttribute('aria-live', 'polite');
+  host.setAttribute('role', 'status');
+  const close = () => {
+    clearTimeout(timer);
     t.classList.remove('show');
     setTimeout(() => t.remove(), 300);
-  }, ms);
+  };
+  const t = h('div', { class: `toast toast-${kind}` }, h('span', null, msg),
+    action ? h('button', { class: 'toast-action', onclick: () => { close(); action.onClick(); } }, action.label) : null,
+    kind === 'error' || action ? h('button', { class: 'icon-btn toast-close', 'aria-label': 'Dismiss', onclick: close }, icon('close')) : null);
+  host.append(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  const timer = kind === 'error' ? null : setTimeout(close, action ? Math.max(ms, 6000) : ms);
+  return close;
 }
 
 // ---- Formatting ----
@@ -227,18 +287,22 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
 
   const playBtn = PLAYABLE.has(item.Type)
     ? h('button', {
-      class: 'card-play', title: 'Play', onclick: (e) => {
+      class: 'card-play', title: 'Play', 'aria-label': `Play ${title}`, tabindex: -1, onclick: (e) => {
         e.stopPropagation();
         openPlayer(item.Id);
       },
     }, icon('play'))
     : null;
 
-  const el = h('div', { class: `card ${shape}`, tabindex: 0, title: item.Name },
+  const state = ud.Played ? 'watched' : pct ? `${Math.round(pct)}% played` : '';
+  const isNew = isNewItem(item);
+  const label = [title, sub, isNew ? 'new' : '', state].filter(Boolean).join(', ');
+  const el = h('div', { class: `card ${shape}`, tabindex: 0, role: 'link', 'aria-label': label },
     h('div', { class: 'card-img' },
-      img ? h('img', { src: img, loading: 'lazy', decoding: 'async', alt: '' }) : h('div', { class: 'card-fallback' }, icon(item.Type === 'Series' ? 'tv' : 'movie')),
-      isNewItem(item)
-        ? h('div', { class: 'badge-new' }, item.Type === 'Series' && newEpisodeCount(item.Id) > 1 ? `${newEpisodeCount(item.Id)} NEW` : 'NEW')
+      img ? blurFor(item, img) : null,
+      img ? fadeImg(img) : h('div', { class: 'card-fallback' }, icon(item.Type === 'Series' ? 'tv' : 'movie')),
+      isNew
+        ? h('div', { class: 'badge-new', 'aria-hidden': 'true' }, item.Type === 'Series' && newEpisodeCount(item.Id) > 1 ? `${newEpisodeCount(item.Id)} new` : 'New')
         : null,
       ud.Played ? h('div', { class: 'badge badge-played' }, icon('check')) : null,
       !ud.Played && ud.UnplayedItemCount ? h('div', { class: 'badge' }, ud.UnplayedItemCount) : null,
@@ -259,9 +323,36 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
   el.addEventListener('click', open);
   el.addEventListener('contextmenu', (e) => itemMenu(item, e, { onRemove: onRemove && (() => onRemove(item, el)) }));
   el.addEventListener('keydown', (e) => {
+    if (e.target !== el) return;
     if (e.key === 'Enter') open();
+    else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      const r = el.getBoundingClientRect();
+      itemMenu(item, { preventDefault() {}, stopPropagation() {}, currentTarget: el, clientX: r.left + 24, clientY: r.top + 24 }, { onRemove: onRemove && (() => onRemove(item, el)) });
+    } else if (e.key.toLowerCase() === 'p' && PLAYABLE.has(item.Type)) openPlayer(item.Id);
   });
   return el;
+}
+
+// An image that fades in once loaded (over its blur placeholder).
+export function fadeImg(src, attrs = {}) {
+  const img = h('img', { src, loading: 'lazy', decoding: 'async', alt: '', ...attrs });
+  const done = () => img.classList.add('loaded');
+  if (img.complete && img.naturalWidth) done();
+  else {
+    img.addEventListener('load', done, { once: true });
+    img.addEventListener('error', () => img.remove(), { once: true });
+  }
+  return img;
+}
+
+// The blur placeholder for whichever image a URL points at, found by its tag.
+export function blurFor(item, url) {
+  const tag = /[?&]tag=([^&]+)/.exec(url)?.[1];
+  if (!tag) return null;
+  for (const map of Object.values(item.ImageBlurHashes || {})) {
+    if (map?.[tag]) return blurCanvas(map[tag]);
+  }
+  return null;
 }
 
 // Right-click menu for any movie, show or episode.
@@ -294,16 +385,32 @@ export function itemMenu(item, e, { onRemove } = {}) {
   ].filter(Boolean), { title: label, at: { x: e.clientX, y: e.clientY } });
 }
 
+let rowIds = 0;
 export function row(title, items, opts = {}) {
-  const track = h('div', { class: 'row-track' }, items.map((it) => itemCard(it, opts)));
-  const scrollBy = (dir) => track.scrollBy({ left: dir * track.clientWidth * 0.85, behavior: 'smooth' });
-  return h('section', { class: 'row' },
+  const id = `row-${++rowIds}`;
+  const track = h('div', { class: 'row-track', role: 'list', 'aria-labelledby': id }, items.map((it) => {
+    const card = itemCard(it, opts);
+    card.setAttribute('role', 'link');
+    return h('div', { role: 'listitem' }, card);
+  }));
+  const scrollBy = (dir) => track.scrollBy({ left: dir * track.clientWidth * 0.85, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  const prev = iconBtn('chevronLeft', 'Scroll left', () => scrollBy(-1));
+  const next = iconBtn('chevronRight', 'Scroll right', () => scrollBy(1));
+  const section = h('section', { class: 'row' },
     h('div', { class: 'row-head' },
-      h('h2', null, title),
-      h('div', { class: 'row-nav' },
-        iconBtn('chevronLeft', 'Scroll left', () => scrollBy(-1)),
-        iconBtn('chevronRight', 'Scroll right', () => scrollBy(1)))),
+      h('h2', { id }, title),
+      h('div', { class: 'row-nav' }, prev, next)),
     track);
+  // Arrows only when the row overflows, each disabled at its end.
+  const sync = () => {
+    const max = track.scrollWidth - track.clientWidth;
+    section.classList.toggle('overflows', max > 4);
+    prev.disabled = track.scrollLeft <= 4;
+    next.disabled = track.scrollLeft >= max - 4;
+  };
+  track.addEventListener('scroll', sync, { passive: true });
+  new ResizeObserver(sync).observe(track);
+  return section;
 }
 
 export function select(options, value, onChange, attrs = {}) {

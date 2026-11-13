@@ -1,0 +1,89 @@
+/* Nova design tokens. Every colour, size, radius, shadow and duration in the
+   other stylesheets comes from here, so the look changes in one place.
+   Graphite surfaces, one warm accent (Starlight), one spot colour (Flare)
+   that is only ever used for the icon and NEW badges. */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0e0e10;
+  --surface: #17171a;
+  --surface-2: #202024;
+  --surface-3: #2a2a2f;
+  --separator: rgba(255, 255, 255, 0.08);
+  --hover: rgba(255, 255, 255, 0.06);
+  --pressed: rgba(255, 255, 255, 0.1);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --glass: rgba(23, 23, 26, 0.92); /* panels floating over video or artwork */
+
+  /* Text */
+  --text: #f2f2f3;
+  --text-2: #a6a6ad;
+  --text-3: #85858e;
+
+  /* Brand */
+  --accent: #f3e7cf; /* Starlight: primary fill, progress, focus, selection */
+  --on-accent: #111113;
+  --spot: #ff6a3d; /* Flare: icon and NEW badge only, never a control */
+  --on-spot: #111113;
+
+  /* Status */
+  --danger: #ff453a;
+  --success: #30d158;
+  --rating: #ffd60a;
+
+  /* Type: Segoe UI Variable, sentence case, nothing under 12 px */
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --fs-display: 34px; --lh-display: 40px;
+  --fs-title1: 26px; --lh-title1: 32px;
+  --fs-title2: 20px; --lh-title2: 26px;
+  --fs-headline: 15px; --lh-headline: 20px;
+  --fs-body: 14px; --lh-body: 20px;
+  --fs-callout: 13px; --lh-callout: 18px;
+  --fs-caption: 12px; --lh-caption: 16px;
+
+  /* Shape */
+  --r-s: 6px;
+  --r-m: 10px;
+  --r-l: 14px;
+  --r-xl: 20px;
+  --r-full: 999px;
+
+  /* Spacing: 4 px grid */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --page-x: 36px;
+
+  /* Depth: black shadows only */
+  --shadow-1: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 24px 64px rgba(0, 0, 0, 0.55);
+
+  /* Motion */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Layout */
+  --titlebar: 48px;
+  --sidebar: 232px;
+  --rail: 72px;
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+/* Reduce motion: from Windows, or forced on in Settings → Appearance. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not(.motion-on) { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+}
+:root.reduce-motion { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+
+@media (prefers-contrast: more) {
+  :root { --text-2: #c8c8ce; --text-3: #b0b0b8; --separator: rgba(255, 255, 255, 0.24); }
+}

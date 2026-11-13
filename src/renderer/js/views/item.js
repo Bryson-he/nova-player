@@ -3,7 +3,7 @@ import {
   h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select, isNewItem, itemMenu,
   backdropUrl, posterUrl, logoUrl, landscapeUrl, formatRuntime, formatTime, endsAt, epLabel,
 } from '../ui.js';
-import { navigate, scroller } from '../router.js';
+import { navigate, scroller, setPageTitle } from '../router.js';
 import { openPlayer, shufflePlay } from '../player.js';
 import {
   chooseAudio, chooseSubtitle, audioStreams, subStreams, streamLabel, rememberTrack, seriesPref, forgetSeries,
@@ -26,8 +26,10 @@ export function itemView({ id, seasonId }) {
         item = await api.item(item.SeriesId);
         if (my !== token) return;
       }
+      setPageTitle(self, item.Name);
       let content;
-      if (item.Type === 'Series') content = await renderSeries(item, my);
+      if (item.Type === 'Person') content = await renderPerson(item, my);
+      else if (item.Type === 'Series') content = await renderSeries(item, my);
       else if (item.Type === 'BoxSet' || item.IsFolder) content = await renderCollection(item, my);
       else content = renderPlayable(item);
       if (my !== token || !content) return;
@@ -116,7 +118,7 @@ export function itemView({ id, seasonId }) {
     if (cast.length) {
       el.append(h('section', { class: 'row' },
         h('div', { class: 'row-head' }, h('h2', null, 'Cast & Crew')),
-        h('div', { class: 'row-track' }, cast.map((p) => h('div', { class: 'person' },
+        h('div', { class: 'row-track' }, cast.map((p) => h('button', { class: 'person person-btn', onclick: () => navigate('item', { id: p.Id }) },
           p.PrimaryImageTag
             ? h('img', { src: api.image(p.Id, 'Primary', { tag: p.PrimaryImageTag, maxWidth: 200 }), loading: 'lazy', alt: '' })
             : h('div', { class: 'person-fallback' }, p.Name[0]),
@@ -333,6 +335,32 @@ export function itemView({ id, seasonId }) {
 
   // ---------- collections / folders ----------
 
+  // A person (from search or the cast row): their movies and shows in this library.
+  async function renderPerson(item, my) {
+    const res = await api.items({
+      PersonIds: item.Id,
+      Recursive: true,
+      IncludeItemTypes: 'Movie,Series',
+      SortBy: 'ProductionYear,SortName',
+      SortOrder: 'Descending',
+      Fields: 'PrimaryImageAspectRatio,ProductionYear',
+      EnableImageTypes: 'Primary,Thumb,Backdrop',
+    });
+    if (my !== token) return null;
+    const items = res?.Items || [];
+    const photo = item.ImageTags?.Primary ? api.image(item.Id, 'Primary', { tag: item.ImageTags.Primary, maxWidth: 400 }) : null;
+    return [
+      h('header', { class: 'person-head' },
+        photo ? h('img', { class: 'person-photo', src: photo, alt: '' }) : h('div', { class: 'person-photo person-fallback' }, item.Name[0]),
+        h('div', { class: 'hero-info' },
+          h('h1', null, item.Name),
+          item.Overview ? h('p', { class: 'overview clamp-3' }, item.Overview) : null)),
+      h('section', { class: 'collection-grid' },
+        h('h2', null, items.length ? `In your library (${items.length})` : 'Nothing with them in your library'),
+        h('div', { class: 'grid size-m portrait' }, items.map((i) => itemCard(i)))),
+    ];
+  }
+
   async function renderCollection(item, my) {
     const res = await api.items({
       ParentId: item.Id,
@@ -351,11 +379,12 @@ export function itemView({ id, seasonId }) {
   }
 
   load();
-  return {
+  const self = {
     el,
     onShow: () => load(true),
     destroy() {
       token++;
     },
   };
+  return self;
 }

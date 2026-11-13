@@ -127,6 +127,9 @@ const STORE_KEYS = {
   lastUsername: (/** @type {unknown} */ v) => isStr(v, 256),
   user: (/** @type {any} */ v) => isPlainObject(v) && isStr(v.Id, 64),
   server: (/** @type {any} */ v) => isPlainObject(v) && isStr(v.url, 2048) && !!originOf(v.url),
+  servers: (/** @type {any} */ v) => Array.isArray(v) && v.length <= 10
+    && v.every((s) => isPlainObject(s) && isStr(s.url, 2048) && !!originOf(s.url) && (s.name == null || isStr(s.name, 200))),
+  recentSearches: (/** @type {any} */ v) => Array.isArray(v) && v.length <= 20 && v.every((s) => isStr(s, 200)),
 };
 const MAX_VALUE_BYTES = 1024 * 1024;
 const MAX_STORE_BYTES = 8 * 1024 * 1024;
