@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src * data: blob:; media-src * blob: data:; connect-src *; worker-src 'self' blob:; font-src 'self' data:">
+  <!-- The content security policy is sent as a response header by the main
+       process (src/main/security.js buildCsp), so it can name the server. -->
   <title>Nova Player</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app"></div>
   <div id="toasts"></div>
+  <script src="js/trusted-types.js"></script>
   <script src="vendor/hls.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>

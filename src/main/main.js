@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const {
-  originOf, isPrivateHost, isEncrypted, serverCandidates, validStoreWrite, MAX_STORE_BYTES,
+  originOf, isPrivateHost, isEncrypted, serverCandidates, validStoreWrite, MAX_STORE_BYTES, buildCsp,
 } = require('./security');
 const { CHANNELS } = require('./ipc-contract');
 
@@ -231,12 +231,17 @@ function createWindow() {
 }
 
 function registerProtocol() {
-  protocol.handle('app', (req) => {
+  protocol.handle('app', async (req) => {
     const { pathname } = new URL(req.url);
     const rel = decodeURIComponent(pathname).replace(/^\/+/, '') || 'index.html';
     const file = path.normalize(path.join(RENDERER_DIR, rel));
     if (!file.startsWith(RENDERER_DIR)) return new Response('Forbidden', { status: 403 });
-    return net.fetch(pathToFileURL(file).toString());
+    const res = await net.fetch(pathToFileURL(file).toString());
+    if (!file.endsWith('.html')) return res;
+    // The policy names the signed-in server, so it is sent per load, not baked into the file.
+    const headers = new Headers(res.headers);
+    headers.set('Content-Security-Policy', buildCsp(auth.token ? auth.origin : null));
+    return new Response(res.body, { status: res.status, headers });
   });
 }
 
