@@ -101,6 +101,7 @@ const RESERVED_NAMES = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$
  * @param {string} fallback
  */
 function safeFileName(name, fallback = 'screenshot') {
+  // eslint-disable-next-line no-control-regex -- control characters are exactly what must go
   let s = String(name ?? '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 150);
   s = s.replace(/[. ]+$/, '');
   if (!s || RESERVED_NAMES.test(s)) s = s ? `_${s}` : fallback;

@@ -16,7 +16,12 @@
     "postinstall": "node scripts/copy-vendor.js && node scripts/build-preload.js",
     "dist": "node scripts/build-preload.js && electron-builder --win nsis portable --publish never",
     "release": "node scripts/build-preload.js && electron-builder --win nsis portable --publish always",
-    "pack": "node scripts/build-preload.js && electron-builder --win dir"
+    "pack": "node scripts/build-preload.js && electron-builder --win dir",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.js test/*.test.mjs",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "format": "prettier --write src/main test scripts"
   },
   "build": {
     "appId": "com.nova.jellyfinplayer",
@@ -60,11 +65,16 @@
     }
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "electron": "^45.0.0",
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
     "hls.js": "^1.7.3",
-    "jassub": "^2.5.23"
+    "jassub": "^2.5.23",
+    "prettier": "3.10.1",
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"

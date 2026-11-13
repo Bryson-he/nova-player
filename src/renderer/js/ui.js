@@ -217,7 +217,7 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
   const isEp = item.Type === 'Episode';
   const img = shape === 'landscape' ? landscapeUrl(item) : posterUrl(item);
   const title = isEp && showSeries ? item.SeriesName : item.Name;
-  let sub = '';
+  let sub;
   if (isEp) sub = [epLabel(item), showSeries ? item.Name : ''].filter(Boolean).join(' · ');
   else if (item.Type === 'Series') sub = item.ProductionYear ? `${item.ProductionYear}${item.Status === 'Continuing' ? ' – Present' : ''}` : '';
   else sub = item.ProductionYear || '';

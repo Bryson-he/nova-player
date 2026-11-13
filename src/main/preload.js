@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 // Builds window.nova from the shared IPC contract. The sandboxed preload can't
 // require local files at runtime, so scripts/build-preload.js bundles this

@@ -1,3 +1,4 @@
+// @ts-check
 // Jellyfin REST client. Every call is async with a timeout so a slow or
 // unreachable server can never lock up the interface.
 import { store } from './store.js';
@@ -10,7 +11,18 @@ const DEVICE_NAME = 'Windows PC';
 export const CARD_FIELDS = 'PrimaryImageAspectRatio,ProductionYear,Overview,DateCreated';
 const DETAIL_FIELDS = 'Overview,Genres,People,Studios,MediaSources,MediaStreams,Trickplay,Taglines,ChildCount,RecursiveItemCount,DateCreated,Chapters,ExternalUrls,RemoteTrailers';
 
+/**
+ * @typedef {object} RequestOptions
+ * @property {string} [method]
+ * @property {Record<string, unknown>} [query]
+ * @property {unknown} [body]
+ * @property {number} [timeout]  milliseconds
+ * @property {AbortSignal} [signal]
+ * @property {string} [base]  another server, used while signing in
+ */
+
 export class ApiError extends Error {
+  /** @param {number} status @param {string} message */
   constructor(status, message) {
     super(message);
     this.status = status;
@@ -79,6 +91,7 @@ class Api {
     return stripKeyParams(full);
   }
 
+  /** @param {string} path @param {RequestOptions} [opts] */
   async request(path, { method = 'GET', query, body, timeout = 20000, signal, base } = {}) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(new Error('Request timed out')), timeout);
@@ -112,7 +125,7 @@ class Api {
         const reason = ctrl.signal.reason;
         throw reason instanceof Error ? reason : new Error('Request cancelled');
       }
-      throw new Error(`Cannot reach server (${err.message})`);
+      throw new Error(`Cannot reach server (${err.message})`, { cause: err });
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
@@ -120,6 +133,7 @@ class Api {
   }
 
   // Jellyfin 10.9 moved several user routes. Try the new route first, then the legacy one.
+  /** @param {string[]} paths @param {RequestOptions} [opts] */
   async tryPaths(paths, opts) {
     let lastErr;
     for (const p of paths) {
@@ -142,18 +156,18 @@ class Api {
    */
   async findServer(input) {
     const res = await window.nova.findServer(String(input));
-    if (res.error) throw new Error(res.error);
-    return res;
+    if ('error' in res && res.error) throw new Error(res.error);
+    return /** @type {NovaFoundServer} */ (res);
   }
 
   publicUsers() {
     return this.request('/Users/Public', { timeout: 6000 }).catch(() => []);
   }
 
-  /** @param {object} req */
+  /** @param {{ username: string, password: string } | { secret: string }} req */
   async #signIn(req) {
     const res = await window.nova.signIn({ base: this.base, ...req });
-    if (!res.ok) throw new ApiError(res.status || 0, res.status === 401 ? 'Not authorized.' : res.message);
+    if (res.ok === false) throw new ApiError(res.status || 0, res.status === 401 ? 'Not authorized.' : res.message);
     return res;
   }
 
@@ -331,6 +345,11 @@ class Api {
 
   // ---- URLs ----
 
+  /**
+   * @param {string} id
+   * @param {string} [type]
+   * @param {{ tag?: string, maxWidth?: number, maxHeight?: number, quality?: number, index?: number }} [opts]
+   */
   image(id, type = 'Primary', { tag, maxWidth, maxHeight, quality = 90, index } = {}) {
     const path = `/Items/${id}/Images/${type}${index != null ? '/' + index : ''}`;
     return this.url(path, { tag, maxWidth, maxHeight, quality });

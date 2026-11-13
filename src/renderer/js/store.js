@@ -1,3 +1,4 @@
+// @ts-check
 // Persistent app state. Lives in the main process (JSON file in %APPDATA%),
 // mirrored here so reads are synchronous and writes never block the UI.
 
