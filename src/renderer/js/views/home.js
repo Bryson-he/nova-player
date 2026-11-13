@@ -114,7 +114,7 @@ export function homeView() {
       });
 
       api.favorites().then((items) => {
-        if (my === token && items.length) favSlot.replaceWith(row('Favorites', items));
+        if (my === token && items.length) favSlot.replaceWith(row('Favourites', items));
       });
 
       libs.forEach((lib, i) => {

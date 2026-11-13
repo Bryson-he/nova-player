@@ -25,7 +25,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
-const ICON = path.join(__dirname, '..', '..', 'build', 'icon.png');
+const ICON = path.join(__dirname, '..', '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const APP_ORIGIN = 'app://nova';
 const DEBUG = !!process.env.NOVA_DEBUG;
 const CLIENT_NAME = 'Nova Player';

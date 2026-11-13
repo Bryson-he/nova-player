@@ -389,7 +389,7 @@ export function itemMenu(item, e, { onRemove } = {}) {
     item.Type === 'Episode' && item.SeriesId ? { label: 'Go to series', onClick: () => navigate('item', { id: item.SeriesId }) } : null,
     { divider: true },
     { label: ud.Played ? 'Mark unwatched' : 'Mark watched', onClick: act(() => api.setPlayed(item.Id, !ud.Played), ud.Played ? 'Marked unwatched' : 'Marked watched') },
-    { label: ud.IsFavorite ? 'Remove from favorites' : 'Add to favorites', onClick: act(() => api.setFavorite(item.Id, !ud.IsFavorite), ud.IsFavorite ? 'Removed from favorites' : 'Added to favorites') },
+    { label: ud.IsFavorite ? 'Remove from favourites' : 'Add to favourites', onClick: act(() => api.setFavorite(item.Id, !ud.IsFavorite), ud.IsFavorite ? 'Removed from favourites' : 'Added to favourites') },
     pos && !ud.Played ? { label: 'Remove from Continue Watching', onClick: onRemove || act(() => api.hideFromResume(item.Id), 'Removed from Continue Watching') } : null,
   ].filter(Boolean), { title: label, at: { x: e.clientX, y: e.clientY } });
 }
