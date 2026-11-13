@@ -12,7 +12,8 @@ export const NOTES = {
     "Nova finds Jellyfin servers on your network, remembers the ones you've used, and lets you switch user or server from the account menu.",
     'Every screen works with the keyboard; press ? to see every shortcut.',
     'Settings → Appearance: your Windows accent colour, artwork tints, reduced motion or transparency, and zoom (Ctrl + / Ctrl −).',
-    'Sleep timer, Still watching? after a few episodes, and video fit (V) for ultrawide screens.',
+    'Auto crop (press V) finds black bars that are part of the video and zooms past them, so films fill ultrawide screens.',
+    'Sleep timer, Still watching? after a few episodes, and more video fit modes: fill, stretch and zoom.',
   ],
   '1.4.0': [
     'Safer sign-in: your login now stays inside Nova\'s core and is never written into video, subtitle or picture links, so it can\'t end up in server or proxy logs.',

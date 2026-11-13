@@ -19,6 +19,7 @@ import { SubtitleMixin } from './player/subtitles.js';
 import { MenuMixin } from './player/menus.js';
 import { SegmentMixin } from './player/segments.js';
 import { ReportingMixin } from './player/reporting.js';
+import { CropMixin } from './player/crop.js';
 
 let active = null;
 let fsState = false;
@@ -220,6 +221,7 @@ class Player {
       const ht = this.el.clientHeight || 1;
       this.el.style.setProperty('--ass-lift', String(Math.max(0.6, (ht - 110) / ht)));
       this.el.style.setProperty('--ass-lift-mini', String(Math.max(0.6, (ht - 60) / ht)));
+      this.applyCrop();
     });
     this.resizeObs.observe(this.el);
     this.updateEpButtons();
@@ -606,6 +608,7 @@ class Player {
     window.nova.setDarkOverlay(false);
     window.nova.taskbar(null);
     this.resizeObs?.disconnect();
+    this.stopCrop();
     if (navigator.mediaSession) {
       navigator.mediaSession.metadata = null;
       for (const a of ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack', 'stop']) {
@@ -625,7 +628,7 @@ class Player {
 }
 
 // The player is one class split across files by area; copy each part's methods in.
-for (const part of [StreamMixin, SubtitleMixin, MenuMixin, SegmentMixin, ReportingMixin]) {
+for (const part of [StreamMixin, SubtitleMixin, MenuMixin, SegmentMixin, ReportingMixin, CropMixin]) {
   for (const name of Object.getOwnPropertyNames(part.prototype)) {
     if (name === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Player.prototype, name)) throw new Error(`Player method defined twice: ${name}`);
