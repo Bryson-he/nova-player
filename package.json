@@ -1,7 +1,7 @@
 {
   "name": "nova-player",
   "productName": "Nova Player",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A fast, modern Jellyfin client for Windows",
   "author": "Bryson",
   "license": "MIT",
@@ -73,8 +73,8 @@
     "esbuild": "^0.28.2",
     "eslint": "10.14.0",
     "globals": "17.14.0",
-    "hls.js": "^1.7.4",
-    "jassub": "^2.5.37",
+    "hls.js": "1.7.3",
+    "jassub": "2.5.23",
     "prettier": "3.10.1",
     "typescript": "7.0.2"
   },

@@ -5,6 +5,11 @@ import { h, button, novaMark } from './ui.js';
 import { trapFocus } from './dialog.js';
 
 export const NOTES = {
+  '2.0.1': [
+    'Styled anime subtitles work again. Since 1.4.0 they quietly fell back to plain text, so signs, fonts and positioning were lost.',
+    'Subtitles can use the fonts installed on your PC again when a font isn’t included with the video.',
+    'Auto crop no longer zooms into dark scenes; it only crops real film bars (2.39:1, 1.85:1, 4:3 and the like).',
+  ],
   '2.0.0': [
     'A new look: calm graphite, one warm accent, a new icon, and Mica behind the sidebar on Windows 11.',
     'Search from anywhere with Ctrl K. Results appear as you type, including people.',

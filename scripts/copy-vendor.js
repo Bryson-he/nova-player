@@ -37,8 +37,11 @@ if (fs.existsSync(jassubDist)) {
     const common = { bundle: true, format: 'esm', minify: true, target: 'chrome120', logLevel: 'warning', legalComments: 'none' };
     esbuild.buildSync({ ...common, entryPoints: [path.join(jassubDist, 'jassub.js')], outfile: path.join(jassubOut, 'jassub.js') });
     esbuild.buildSync({ ...common, entryPoints: [path.join(jassubDist, 'worker', 'worker.js')], outfile: path.join(jassubOut, 'worker', 'worker.js') });
-    for (const f of ['jassub-worker.wasm', 'jassub-worker-modern.wasm']) {
-      copy(path.join(jassubDist, 'wasm', f), path.join(jassubOut, 'wasm', f));
+    // Every runtime file in wasm/: the .wasm builds and, in newer JASSUB, the
+    // .js glue the worker loads by URL. Missing one breaks styled subtitles
+    // silently (test/imports.test.js checks the bundle's URLs resolve).
+    for (const f of fs.readdirSync(path.join(jassubDist, 'wasm'))) {
+      if (/\.(wasm|js)$/.test(f)) copy(path.join(jassubDist, 'wasm', f), path.join(jassubOut, 'wasm', f));
     }
     copy(path.join(jassubDist, 'default.woff2'), path.join(jassubOut, 'default.woff2'));
     console.log('Bundled jassub');

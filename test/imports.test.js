@@ -36,3 +36,20 @@ test('relative imports and asset URLs resolve', () => {
   }
   assert.deepEqual(bad, []);
 });
+
+// The bundled JASSUB (built by scripts/copy-vendor.js) loads its worker, wasm
+// and glue files by URL. A file missing from vendor/ silently turns styled
+// subtitles into plain text, as happened when JASSUB 2.5.37 started loading
+// wasm/jassub-worker-modern.js.
+test('bundled JASSUB files it loads by URL are present', (t) => {
+  const bundle = path.join(root, '..', 'vendor', 'jassub', 'jassub.js');
+  if (!fs.existsSync(bundle)) {
+    t.skip('vendor not built (npm install builds it)');
+    return;
+  }
+  const src = fs.readFileSync(bundle, 'utf8');
+  const urls = [...src.matchAll(/new URL\(\s*["'](\.\/[^"']+)["']\s*,\s*import\.meta\.url\s*\)/g)].map((m) => m[1]);
+  assert.ok(urls.length >= 3, `expected asset URLs in jassub.js, found ${urls.length}`);
+  const missing = urls.filter((u) => !fs.existsSync(path.resolve(path.dirname(bundle), u)));
+  assert.deepEqual(missing, []);
+});
