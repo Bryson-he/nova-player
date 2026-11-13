@@ -65,9 +65,11 @@
 .sub-layer.top { top: 5%; bottom: auto !important; }
 .sub-layer.top .sub-cue { font-size: calc(min(3.6vh, 2.1vw) * var(--sub-scale)); }
 .player.show-controls .sub-layer.top { top: max(5%, 96px); }
-canvas.JASSUB { z-index: 1; transition: transform var(--dur-2) var(--ease); }
-/* Lift styled subtitles above the controls while they are showing. */
-.player.show-controls canvas.JASSUB { transform: translateY(-96px); }
+canvas.JASSUB { z-index: 1; transform-origin: 50% 0; transition: transform var(--dur-2) var(--ease); }
+/* While the controls show, shrink styled subtitles from the top edge so the
+   bottom lines clear the controls and signs at the top stay where they are.
+   The player sets --ass-lift from its height. */
+.player.show-controls canvas.JASSUB { transform: scale(var(--ass-lift, 0.9)); }
 
 .player-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-4); z-index: 5; pointer-events: none; opacity: 0; transition: opacity var(--dur-2); }
 .player-loading.show { opacity: 1; }
@@ -117,7 +119,7 @@ canvas.JASSUB { z-index: 1; transition: transform var(--dur-2) var(--ease); }
 .player.mini .skip-btn, .player.mini .upnext { right: 10px; bottom: 76px; transform: scale(0.8); transform-origin: bottom right; }
 .player.mini .osd { top: 60px; font-size: var(--fs-callout); }
 .player.mini .player-loading .btn { display: none; }
-.player.mini.show-controls canvas.JASSUB { transform: translateY(-52px); }
+.player.mini.show-controls canvas.JASSUB { transform: scale(var(--ass-lift-mini, 0.82)); }
 .player.mini.show-controls .sub-layer.top { top: max(5%, 60px); }
 .player.mini.show-controls .sub-layer:not(.top) { bottom: max(var(--sub-bottom, 8%), 70px); }
 

@@ -215,6 +215,13 @@ class Player {
     document.body.append(this.el);
     window.nova.setDarkOverlay(true);
     this.setFit(store.setting('videoFit'), false);
+    // How far styled subtitles shrink to clear the controls (see player.css).
+    this.resizeObs = new ResizeObserver(() => {
+      const ht = this.el.clientHeight || 1;
+      this.el.style.setProperty('--ass-lift', String(Math.max(0.6, (ht - 110) / ht)));
+      this.el.style.setProperty('--ass-lift-mini', String(Math.max(0.6, (ht - 60) / ht)));
+    });
+    this.resizeObs.observe(this.el);
     this.updateEpButtons();
   }
 
@@ -598,6 +605,7 @@ class Player {
     window.nova.keepAwake(false);
     window.nova.setDarkOverlay(false);
     window.nova.taskbar(null);
+    this.resizeObs?.disconnect();
     if (navigator.mediaSession) {
       navigator.mediaSession.metadata = null;
       for (const a of ['play', 'pause', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack', 'stop']) {
