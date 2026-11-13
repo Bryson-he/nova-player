@@ -3,7 +3,7 @@
 // so the real image fills the window. Mostly for ultrawide screens.
 // Methods are mixed into Player (see player.js); `this` is the player.
 
-const SAMPLE_W = 192; // frames are checked at this width, which is plenty
+const SAMPLE_W = 320; // frames are checked at this width: enough to tell film shapes apart
 const DARK = 24; // a row or column this dark on average (0-255)...
 const BRIGHT = 48; // ...with no pixel brighter than this, is a bar
 
@@ -50,19 +50,39 @@ export function findPicture(px, w, h) {
   return { top, bottom, left, right };
 }
 
+// Shapes films are actually made in. Bars that leave any other shape are a
+// dark scene, not a letterbox, and are ignored.
+const WIDE = [1.85, 2.0, 2.2, 2.35, 2.39, 2.76];
+const NARROW = [4 / 3, 1.37];
+
 /**
  * Bars to remove, as fractions of the frame, from the widest picture seen so
- * far. Bars are kept symmetric (the smaller side wins), since film bars always
- * are and a dark edge of the picture shouldn't be mistaken for one. Bars under
- * 2% are ignored.
+ * far: kept symmetric (the smaller side wins), snapped to the nearest real
+ * film shape within 2.5%, or nothing at all.
  * @param {{ top: number, bottom: number, left: number, right: number }} seen
- * @param {number} w
- * @param {number} h
+ * @param {number} w  frame width (sample pixels)
+ * @param {number} h  frame height
  */
+const nearest = (shape, list) => {
+  const best = list.reduce((a, r) => (Math.abs(shape - r) < Math.abs(shape - a) ? r : a));
+  return Math.abs(shape - best) / best < 0.025 ? best : null;
+};
+
 export function barsFrom(seen, w, h) {
   const v = Math.min(seen.top, h - 1 - seen.bottom) / h;
   const s = Math.min(seen.left, w - 1 - seen.right) / w;
-  return { v: v >= 0.02 ? v : 0, h: s >= 0.02 ? s : 0 };
+  const frame = w / h;
+  if (v >= 0.02 && s < 0.02) {
+    const shape = frame / (1 - 2 * v);
+    const film = nearest(shape, WIDE);
+    return film && film > frame ? { v: (1 - frame / film) / 2, h: 0 } : { v: 0, h: 0 };
+  }
+  if (s >= 0.02 && v < 0.02) {
+    const shape = frame * (1 - 2 * s);
+    const film = nearest(shape, NARROW);
+    return film && film < frame ? { v: 0, h: (1 - film / frame) / 2 } : { v: 0, h: 0 };
+  }
+  return { v: 0, h: 0 }; // bars on all sides, or none: leave it
 }
 
 export class CropMixin {
@@ -116,6 +136,9 @@ export class CropMixin {
       left: Math.min(s.left, found.left),
       right: Math.max(s.right, found.right),
     } : found;
+    // Wait for a few frames before trusting it; the widest-seen picture only
+    // ever shrinks the bars from there.
+    if (this.cropSamples < 4) return;
     const bars = barsFrom(this.cropSeen, w, h);
     if (bars.v !== this.cropBars.v || bars.h !== this.cropBars.h) {
       this.cropBars = bars;

@@ -25,7 +25,7 @@ test('a 2.39:1 film stored as 16:9 has bars top and bottom', () => {
   const found = findPicture(frame(w, h, { left: 0, right: w - 1, top, bottom: top + picH - 1 }), w, h);
   assert.deepEqual(found, { top, bottom: top + picH - 1, left: 0, right: w - 1 });
   const bars = barsFrom(found, w, h);
-  assert.ok(Math.abs(bars.v - top / h) < 0.001);
+  assert.ok(Math.abs(bars.v - (1 - (16 / 9) / 2.39) / 2) < 0.001, `snapped to 2.39:1, got ${bars.v}`);
   assert.equal(bars.h, 0);
 });
 
@@ -37,7 +37,14 @@ test('a 4:3 picture stored as 16:9 has bars on the sides', () => {
   const found = findPicture(frame(w, h, { left, right: left + picW - 1, top: 0, bottom: h - 1 }), w, h);
   const bars = barsFrom(found, w, h);
   assert.equal(bars.v, 0);
-  assert.ok(Math.abs(bars.h - left / w) < 0.001);
+  assert.ok(Math.abs(bars.h - (1 - (4 / 3) / (16 / 9)) / 2) < 0.001, `snapped to 4:3, got ${bars.h}`);
+});
+
+test('a dark scene with dark top and bottom is not mistaken for a letterbox', () => {
+  // Dark rows top and bottom leave a 2.6:1 picture: not a real film shape.
+  const found = findPicture(frame(192, 108, { left: 0, right: 191, top: 17, bottom: 90 }), 192, 108);
+  assert.ok(found);
+  assert.deepEqual(barsFrom(found, 192, 108), { v: 0, h: 0 });
 });
 
 test('a dark scene tells us nothing', () => {

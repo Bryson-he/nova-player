@@ -399,8 +399,10 @@ function installNetworkHooks() {
 }
 
 // Electron's default is to grant whatever a page asks for. Nova only needs
-// fullscreen and writing to the clipboard ("Copy details").
-const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write']);
+// fullscreen, writing to the clipboard ("Copy details"), and reading the
+// list of installed fonts, which styled subtitles fall back on when a font
+// isn't attached to the video.
+const ALLOWED_PERMISSIONS = new Set(['fullscreen', 'clipboard-sanitized-write', 'local-fonts']);
 function installPermissionHandlers() {
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((_wc, permission, callback) => callback(ALLOWED_PERMISSIONS.has(permission)));
