@@ -4,6 +4,13 @@ import { store } from './store.js';
 import { h, icon, button } from './ui.js';
 
 export const NOTES = {
+  '1.4.0': [
+    'Safer sign-in: your login now stays inside Nova\'s core and is never written into video, subtitle or picture links, so it can\'t end up in server or proxy logs.',
+    'Nova tries a secure (HTTPS) connection first, and warns before sending your password unencrypted over the internet. Servers on your home network or Tailscale work as before.',
+    'Closing Nova during playback now saves your exact position on the server.',
+    'Links to unfamiliar websites ask before opening in your browser.',
+    'Lots of behind-the-scenes hardening, and signed build records for every release.',
+  ],
   '1.3.0': [
     'Subtitles now show up right as an episode starts, even anime with lots of styled fonts. The next episode\'s subtitles are fetched while you watch.',
     'NEW badges on shows with recently added episodes, on new episodes and movies, plus a New Episodes row on Home. Change how long things count as new in Settings → Libraries.',
