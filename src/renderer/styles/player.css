@@ -126,3 +126,4 @@ canvas.JASSUB { z-index: 1; transition: transform var(--dur-2) var(--ease); }
   .upnext { width: 420px; }
   .upnext img { width: 140px; }
 }
+.upnext .p-subtitle { white-space: normal; }

@@ -248,6 +248,7 @@ class Player {
     v.addEventListener('timeupdate', () => this.onTime());
     v.addEventListener('progress', () => this.updateBuffer());
     v.addEventListener('ended', () => this.onEnded());
+    this.el.addEventListener('pointerdown', () => { this.autoRun = 0; });
     v.addEventListener('error', () => this.onVideoError());
     v.addEventListener('loadedmetadata', () => this.onMetadata());
     v.addEventListener('seeked', () => {
@@ -346,6 +347,7 @@ class Player {
   }
 
   handleKey(e) {
+    this.autoRun = 0; // someone is here
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'range') return;
     // A dialog (shortcuts, an error) has the keyboard while it's open.
     if (document.querySelector('.modal-backdrop')) return;
@@ -583,7 +585,7 @@ class Player {
     this.abort?.abort();
     const reported = this.finish(false);
     this.teardownStream();
-    for (const t of [this.hideTimer, this.osdTimer, this.waitTimer, this.stall1, this.stall2]) clearTimeout(t);
+    for (const t of [this.hideTimer, this.osdTimer, this.waitTimer, this.stall1, this.stall2, this.sleepTimer]) clearTimeout(t);
     clearInterval(this.countdownTimer);
     clearInterval(this.infoTimer);
     closeMenu();

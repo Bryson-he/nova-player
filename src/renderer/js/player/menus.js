@@ -169,6 +169,13 @@ export class MenuMixin {
           onClick: () => this.seekTo(c.start),
         })),
       ] : []),
+      { header: 'Sleep timer' },
+      ...[[0, 'Off'], [15, '15 minutes'], [30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], ['end', 'End of this episode']].map(([m, label]) => ({
+        label,
+        checked: m === 'end' ? !!this.sleepAtEnd : m === 0 ? !this.sleepUntil && !this.sleepAtEnd : false,
+        onClick: () => this.setSleep(m),
+      })),
+      ...(this.sleepUntil ? [{ label: `Pausing at ${new Date(this.sleepUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`, disabled: true }] : []),
       { header: 'Playback speed' },
       ...SPEEDS.map((s) => ({ label: s === 1 ? 'Normal' : `${s}×`, checked: Math.abs(rate - s) < 0.01, onClick: () => this.setSpeed(s) })),
       { header: 'Quality' },

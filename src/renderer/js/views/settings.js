@@ -162,6 +162,8 @@ export function settingsView() {
       section('Playback',
         row('Maximum streaming quality', 'Lower this if you watch away from home on slow internet.', choice('maxBitrate', BITRATES, true)),
         row('Auto-play next episode', 'Shows an Up Next countdown at the end of an episode.', toggle('autoplayNext')),
+        row('Ask "Still watching?"', 'After several episodes play on their own with no one touching anything, Nova checks before carrying on.',
+          choice('stillWatching', [[0, 'Never'], [2, 'After 2 episodes'], [3, 'After 3 episodes'], [5, 'After 5 episodes']], true)),
         row('Up Next countdown', null, choice('nextUpCountdown', [[5, '5 seconds'], [10, '10 seconds'], [15, '15 seconds'], [20, '20 seconds'], [30, '30 seconds']], true)),
         row('Skip intros and recaps', 'Uses Jellyfin media segments (10.10+ or the Intro Skipper plugin).', choice('skipIntro', [['button', 'Show a Skip button'], ['auto', 'Skip automatically'], ['off', 'Off']])),
         row('Show Up Next when credits start', 'If the server knows where the credits are.', toggle('skipCredits')),

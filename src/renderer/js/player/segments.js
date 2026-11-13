@@ -224,7 +224,7 @@ export class SegmentMixin {
         countEl.textContent = `${Math.max(0, remaining)}`;
         if (remaining <= 0) {
           clearInterval(this.countdownTimer);
-          this.playNext();
+          this.playNext(false, true);
         }
       }, 1000);
     }
@@ -244,6 +244,13 @@ export class SegmentMixin {
   onEnded() {
     if (this.endedHandled) return;
     this.endedHandled = true;
+    if (this.sleepAtEnd) {
+      // Sleep timer: "end of this episode".
+      this.sleepAtEnd = false;
+      this.finish(true);
+      this.destroy();
+      return;
+    }
     if (this.nextEp && store.setting('autoplayNext') && !this.upNextCancelled) {
       this.playNext(true);
       return;
@@ -252,8 +259,68 @@ export class SegmentMixin {
     this.destroy();
   }
 
-  playNext(ended = false) {
-    if (this.nextEp) this.playEpisode(this.nextEp, ended);
+  // auto: the countdown or the end of an episode moved on, not the viewer.
+  playNext(ended = false, auto = ended) {
+    if (!this.nextEp) return;
+    if (!auto) this.autoRun = 0;
+    else {
+      this.autoRun = (this.autoRun || 0) + 1;
+      const limit = store.setting('stillWatching');
+      if (limit && this.autoRun > limit) {
+        this.askStillWatching(ended);
+        return;
+      }
+    }
+    this.playEpisode(this.nextEp, ended);
+  }
+
+  // After several episodes in a row with no input: check someone is there,
+  // so a series doesn't run all night and mark everything watched.
+  askStillWatching(ended) {
+    this.hideUpNext();
+    this.video.pause();
+    this.setLoading(false);
+    const next = this.nextEp;
+    let timer = 0;
+    const done = (keepGoing) => {
+      clearTimeout(timer);
+      this.upNextEl.classList.add('hidden');
+      this.upNextEl.removeAttribute('role');
+      if (keepGoing) {
+        this.autoRun = 0;
+        this.playEpisode(next, ended);
+      } else {
+        this.finish(ended);
+        this.destroy();
+      }
+    };
+    const keep = h('button', { class: 'btn btn-primary', onclick: () => done(true) }, icon('play'), h('span', null, 'Keep watching'));
+    fill(this.upNextEl,
+      h('div', { class: 'upnext-body' },
+        h('div', { class: 'upnext-title' }, 'Still watching?'),
+        h('div', { class: 'p-subtitle' }, `${this.autoRun - 1} episodes have played on their own. Nova will stop in 2 minutes unless you carry on.`),
+        h('div', { class: 'upnext-actions' }, keep, h('button', { class: 'btn btn-secondary', onclick: () => done(false) }, 'Stop'))));
+    this.upNextEl.setAttribute('role', 'alertdialog');
+    this.upNextEl.classList.remove('hidden');
+    this.showControls();
+    keep.focus();
+    timer = setTimeout(() => done(false), 120000);
+  }
+
+  // Sleep timer: pause after a while, or stop at the end of this episode.
+  setSleep(minutes) {
+    clearTimeout(this.sleepTimer);
+    this.sleepAtEnd = minutes === 'end';
+    this.sleepUntil = 0;
+    if (typeof minutes === 'number' && minutes > 0) {
+      this.sleepUntil = Date.now() + minutes * 60000;
+      this.sleepTimer = setTimeout(() => {
+        this.sleepUntil = 0;
+        this.video.pause();
+        this.osd('Sleep timer: paused');
+      }, minutes * 60000);
+    }
+    this.osd(minutes === 'end' ? 'Stopping after this episode' : minutes ? `Sleep timer: ${minutes} minutes` : 'Sleep timer off');
   }
 
   playAdjacent(dir) {

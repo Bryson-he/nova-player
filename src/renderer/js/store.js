@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS = {
   subFont: '', // '' = Nova's font
   subEdge: 'outline', // outline | shadow | raised | none
   betaUpdates: false,
+  stillWatching: 3, // ask "Still watching?" after this many episodes play on their own (0 = never)
 };
 
 let data = {};
