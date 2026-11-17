@@ -67,7 +67,9 @@ button.chip:hover { background: var(--surface-3); color: var(--text); }
 .range { display: flex; align-items: center; gap: var(--s-3); }
 .range input { width: 180px; accent-color: var(--accent); }
 .range-val { width: 48px; text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
-input[type=color] { width: 40px; height: 32px; border: 0; background: none; cursor: pointer; padding: 0; }
+input[type=color] { width: 28px; height: 28px; border: 2px solid var(--surface-3); border-radius: 50%; background: none; cursor: pointer; padding: 0; overflow: hidden; }
+input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
 
 .swatches { display: flex; gap: var(--s-2); align-items: center; }
 .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface-3); cursor: pointer; padding: 0; }
@@ -106,4 +108,5 @@ input[type=color] { width: 40px; height: 32px; border: 0; background: none; curs
 
 /* ---- Tooltips: name and shortcut, after 500 ms */
 .tooltip { position: fixed; z-index: 6000; pointer-events: none; padding: 4px var(--s-2); border-radius: var(--r-s); background: var(--surface-3); color: var(--text); font-size: var(--fs-caption); line-height: var(--lh-caption); box-shadow: var(--shadow-1); white-space: nowrap; animation: fade-in var(--dur-1); }
+.tooltip.instant { animation: none; }
 .tooltip kbd { margin-left: var(--s-2); color: var(--text-2); font: inherit; }

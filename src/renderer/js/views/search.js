@@ -71,8 +71,10 @@ export function searchView({ q = '' } = {}) {
         status.textContent = 'No results';
         return;
       }
-      status.textContent = `${items.length + people.length} results`;
+      const n = items.length + people.length;
+      status.textContent = `${n} result${n === 1 ? '' : 's'} for ${t}`;
       fill(results,
+        h('h1', { class: 'search-title' }, `Results for “${t}”`),
         GROUPS.map(([type, label, shape]) => {
           const group = items.filter((i) => i.Type === type);
           if (!group.length) return null;

@@ -31,3 +31,11 @@
 .notes h3 { font-size: var(--fs-callout); color: var(--text-2); margin: var(--s-3) 0 var(--s-1); }
 .notes ul { margin: 6px 0; padding-left: 20px; color: var(--text); line-height: 22px; }
 .notes li { margin: 6px 0; }
+.menu.above { animation-name: rise-in-up; }
+@keyframes rise-in-up { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.menu-value { margin-left: auto; padding-left: var(--s-4); color: var(--text-2); font-size: var(--fs-callout); white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.menu-value + .menu-key { padding-left: var(--s-2); }
+.menu-chevron { width: 16px; height: 16px; color: var(--text-2); flex: none; }
+.menu-item.has-sub .menu-key { margin-left: var(--s-2); padding-left: 0; }
+.menu-back { font-weight: 600; border-bottom: 1px solid var(--separator); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
+.menu-back .menu-chevron { margin-left: 2px; }

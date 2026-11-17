@@ -46,6 +46,8 @@ const ICONS = {
   download: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
   shuffle: 'M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z',
   trailer: 'M18 3v2h-2V3H8v2H6V3H4v18h2v-2h2v2h8v-2h2v2h2V3h-2zM8 17H6v-2h2v2zm0-4H6v-2h2v2zm0-4H6V7h2v2zm10 8h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V7h2v2z',
+  ring: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z',
+  sort: 'M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3L5 6.99h3V14h2V6.99h3L9 3z',
   filter: 'M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z',
   more: 'M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z',
   fit: 'M3 5v4h2V5h4V3H5c-1.1 0-2 .9-2 2zm2 10H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm14 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4zm0-16h-4v2h4v4h2V5c0-1.1-.9-2-2-2z',
@@ -285,7 +287,7 @@ export function isNewItem(item) {
 export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove } = {}) {
   const isEp = item.Type === 'Episode';
   const img = shape === 'landscape' ? landscapeUrl(item) : posterUrl(item);
-  const title = isEp && showSeries ? item.SeriesName : item.Name;
+  const title = (isEp && showSeries ? item.SeriesName : item.Name) || 'Untitled';
   let sub;
   if (isEp) sub = [epLabel(item), showSeries ? item.Name : ''].filter(Boolean).join(' · ');
   else if (item.Type === 'Series') sub = item.ProductionYear ? `${item.ProductionYear}${item.Status === 'Continuing' ? ' – Present' : ''}` : '';
@@ -313,20 +315,21 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
       isNew
         ? h('div', { class: 'badge-new', 'aria-hidden': 'true' }, item.Type === 'Series' && newEpisodeCount(item.Id) > 1 ? `${newEpisodeCount(item.Id)} new` : 'New')
         : null,
-      ud.Played ? h('div', { class: 'badge badge-played' }, icon('check')) : null,
+      ud.Played && !pct && !onRemove ? h('div', { class: 'badge badge-played', 'aria-hidden': 'true' }, icon('check')) : null,
       !ud.Played && ud.UnplayedItemCount ? h('div', { class: 'badge' }, ud.UnplayedItemCount) : null,
       pct ? h('div', { class: 'progress' }, h('div', { style: { width: pct + '%' } })) : null,
       playBtn,
       onRemove ? h('button', {
         class: 'card-remove',
-        title: 'Remove from Continue Watching',
+        title: 'Remove from Continue watching (Delete)',
+        tabindex: -1,
         onclick: (e) => {
           e.stopPropagation();
           onRemove(item, el);
         },
       }, icon('close')) : null),
-    h('div', { class: 'card-title' }, title),
-    sub ? h('div', { class: 'card-sub' }, sub) : null);
+    h('div', { class: 'card-title', dir: 'auto' }, title),
+    sub ? h('div', { class: 'card-sub', dir: 'auto' }, sub) : null);
 
   const open = () => navigate('item', { id: item.Id });
   el.addEventListener('click', open);
@@ -338,8 +341,37 @@ export function itemCard(item, { shape = 'portrait', showSeries = true, onRemove
       const r = el.getBoundingClientRect();
       itemMenu(item, { preventDefault() {}, stopPropagation() {}, currentTarget: el, clientX: r.left + 24, clientY: r.top + 24 }, { onRemove: onRemove && (() => onRemove(item, el)) });
     } else if (e.key.toLowerCase() === 'p' && PLAYABLE.has(item.Type)) openPlayer(item.Id);
+    else if (e.key === 'Delete' && onRemove) onRemove(item, el);
+    else if (e.key.startsWith('Arrow')) moveCardFocus(el, e);
   });
   return el;
+}
+
+// Arrow keys move between cards in a row or grid: Left/Right to neighbours,
+// Up/Down to the nearest card in the row above or below (grids only).
+function moveCardFocus(card, e) {
+  const box = card.closest('.row-track, .grid');
+  if (!box) return;
+  const cards = [...box.querySelectorAll('.card')];
+  const i = cards.indexOf(card);
+  let next;
+  if (e.key === 'ArrowRight') next = cards[i + 1];
+  else if (e.key === 'ArrowLeft') next = cards[i - 1];
+  else if (box.classList.contains('grid')) {
+    const r = card.getBoundingClientRect();
+    const down = e.key === 'ArrowDown';
+    const candidates = cards.filter((c) => {
+      const cr = c.getBoundingClientRect();
+      return down ? cr.top > r.bottom - 4 : cr.bottom < r.top + 4;
+    });
+    const rowTop = down ? Math.min(...candidates.map((c) => c.getBoundingClientRect().top)) : Math.max(...candidates.map((c) => c.getBoundingClientRect().top));
+    next = candidates.filter((c) => Math.abs(c.getBoundingClientRect().top - rowTop) < 4)
+      .sort((a, b) => Math.abs(a.getBoundingClientRect().left - r.left) - Math.abs(b.getBoundingClientRect().left - r.left))[0];
+  } else return;
+  if (!next) return;
+  e.preventDefault();
+  next.focus();
+  next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 // An image that fades in once loaded (over its blur placeholder).
@@ -362,6 +394,57 @@ export function blurFor(item, url) {
     if (map?.[tag]) return blurCanvas(map[tag]);
   }
   return null;
+}
+
+// Marks something watched or unwatched, with an Undo that puts back exactly
+// what was there (including a resume point the server clears).
+export async function setWatched(item, played, refresh) {
+  const prevPlayed = !!item.UserData?.Played;
+  const prevPos = item.UserData?.PlaybackPositionTicks || 0;
+  try {
+    await api.setPlayed(item.Id, played);
+  } catch (err) {
+    toast(`Couldn't update it: ${err.message}`, 'error');
+    return;
+  }
+  refresh?.();
+  const name = item.Type === 'Episode' ? `${epLabel(item)} ${item.Name}`.trim() : item.Name;
+  toast(`${name}: marked ${played ? 'watched' : 'unwatched'}`, 'info', 6000, {
+    label: 'Undo',
+    onClick: async () => {
+      try {
+        await api.setPlayed(item.Id, prevPlayed);
+        if (prevPos) await api.setPosition(item.Id, prevPos);
+        refresh?.();
+      } catch (err) {
+        toast(`Couldn't undo: ${err.message}`, 'error');
+      }
+    },
+  });
+}
+
+// Clears a resume point (drops it off Continue watching), with Undo.
+export async function removeFromResume(item, refresh) {
+  const prevPos = item.UserData?.PlaybackPositionTicks || 0;
+  try {
+    await api.hideFromResume(item.Id);
+  } catch (err) {
+    toast(`Couldn't remove it: ${err.message}`, 'error');
+    return false;
+  }
+  refresh?.();
+  toast(`Removed ${item.Type === 'Episode' ? item.SeriesName : item.Name} from Continue watching`, 'info', 6000, {
+    label: 'Undo',
+    onClick: async () => {
+      try {
+        await api.setPosition(item.Id, prevPos);
+        refresh?.();
+      } catch (err) {
+        toast(`Couldn't undo: ${err.message}`, 'error');
+      }
+    },
+  });
+  return true;
 }
 
 // Right-click menu for any movie, show or episode.
@@ -388,9 +471,9 @@ export function itemMenu(item, e, { onRemove } = {}) {
     { label: 'Details', onClick: () => navigate('item', { id: item.Id }) },
     item.Type === 'Episode' && item.SeriesId ? { label: 'Go to series', onClick: () => navigate('item', { id: item.SeriesId }) } : null,
     { divider: true },
-    { label: ud.Played ? 'Mark unwatched' : 'Mark watched', onClick: act(() => api.setPlayed(item.Id, !ud.Played), ud.Played ? 'Marked unwatched' : 'Marked watched') },
+    { label: ud.Played ? 'Mark unwatched' : 'Mark watched', onClick: () => setWatched(item, !ud.Played, refreshCurrent) },
     { label: ud.IsFavorite ? 'Remove from favourites' : 'Add to favourites', onClick: act(() => api.setFavorite(item.Id, !ud.IsFavorite), ud.IsFavorite ? 'Removed from favourites' : 'Added to favourites') },
-    pos && !ud.Played ? { label: 'Remove from Continue Watching', onClick: onRemove || act(() => api.hideFromResume(item.Id), 'Removed from Continue Watching') } : null,
+    pos ? { label: 'Remove from Continue watching', onClick: onRemove || (() => removeFromResume(item, refreshCurrent)) } : null,
   ].filter(Boolean), { title: label, at: { x: e.clientX, y: e.clientY } });
 }
 
@@ -443,58 +526,105 @@ export function isMenuOpen() {
 
 // items: [{ label, sub, checked, onClick, keepOpen, disabled } | { header } | { divider } | { el }]
 // at: optional { x, y } to open at the mouse (right-click menus) instead of under `anchor`.
-export function popupMenu(anchor, items, { title, container = document.body, at } = {}) {
+// Submenus: an item with `submenu: () => items` and an optional `value` (shown
+// on the right) opens that list in place, with a Back row; Left/Escape go back.
+export function popupMenu(anchor, items, { title, container = document.body, at, onClose } = {}) {
   if (openMenu && openMenu.anchor === anchor && !at) {
     openMenu.close();
     return null;
   }
   closeMenu();
 
-  const menu = h('div', { class: 'menu', role: 'menu' },
-    title ? h('div', { class: 'menu-title' }, title) : null,
-    items.map((it) => {
-      if (it.divider) return h('div', { class: 'menu-divider' });
-      if (it.header) return h('div', { class: 'menu-header' }, it.header);
-      if (it.el) return it.el;
-      return h('button', {
-        class: `menu-item${it.checked ? ' checked' : ''}${it.danger ? ' danger' : ''}`,
-        role: it.checked !== undefined ? 'menuitemradio' : 'menuitem',
-        'aria-checked': it.checked !== undefined ? String(!!it.checked) : null,
-        tabindex: -1,
-        disabled: it.disabled,
-        onclick: (e) => {
-          e.stopPropagation();
-          if (!it.keepOpen) close();
-          it.onClick?.();
-        },
+  const menu = h('div', { class: 'menu', role: 'menu' });
+  const stack = [];
+
+  const itemEl = (it) => {
+    if (it.divider) return h('div', { class: 'menu-divider' });
+    if (it.header) return h('div', { class: 'menu-header' }, it.header);
+    if (it.el) return it.el;
+    const opens = !!it.submenu;
+    return h('button', {
+      class: `menu-item${it.checked ? ' checked' : ''}${it.danger ? ' danger' : ''}${opens ? ' has-sub' : ''}`,
+      role: it.checked !== undefined ? 'menuitemradio' : 'menuitem',
+      'aria-checked': it.checked !== undefined ? String(!!it.checked) : null,
+      'aria-haspopup': opens ? 'menu' : null,
+      tabindex: -1,
+      disabled: it.disabled,
+      onclick: (e) => {
+        e.stopPropagation();
+        if (opens) {
+          stack.push({ items: current.items, title: current.title, focus: current.items.indexOf(it) });
+          render({ items: it.submenu(), title: it.label, back: true });
+          return;
+        }
+        if (!it.keepOpen) close();
+        it.onClick?.();
       },
-      h('span', { class: 'menu-check' }, it.checked ? icon('check') : null),
-      h('span', { class: 'menu-label' }, it.label, it.sub ? h('span', { class: 'menu-sub' }, it.sub) : null),
-      it.key ? h('span', { class: 'menu-key', 'aria-hidden': 'true' }, it.key) : null);
-    }));
+    },
+    h('span', { class: 'menu-check' }, it.checked ? icon('check') : null),
+    h('span', { class: 'menu-label' }, it.label, it.sub ? h('span', { class: 'menu-sub' }, it.sub) : null),
+    it.value ? h('span', { class: 'menu-value' }, it.value) : null,
+    it.key ? h('span', { class: 'menu-key', 'aria-hidden': 'true' }, it.key) : null,
+    opens ? icon('chevronRight', 'menu-chevron') : null);
+  };
+
+  let current = null;
+  function render(view, focusIndex) {
+    current = view;
+    fill(menu,
+      view.back ? h('button', { class: 'menu-item menu-back', role: 'menuitem', tabindex: -1, onclick: (e) => { e.stopPropagation(); goBack(); } },
+        icon('chevronLeft', 'menu-chevron'), h('span', { class: 'menu-label' }, view.title)) : null,
+      !view.back && view.title ? h('div', { class: 'menu-title' }, view.title) : null,
+      view.items.filter(Boolean).map(itemEl));
+    requestAnimationFrame(() => {
+      const list = menuItems();
+      const target = focusIndex !== undefined
+        ? [...menu.children].filter((c) => !c.classList.contains('menu-back'))[focusIndex + (view.title && !view.back ? 1 : 0)]
+        : null;
+      (target?.matches?.('.menu-item') ? target : menu.querySelector('.menu-item.checked:not(:disabled)') || list[view.back ? 1 : 0] || list[0])?.focus({ preventScroll: true });
+    });
+  }
+  function goBack() {
+    const prev = stack.pop();
+    if (prev) render({ items: prev.items, title: prev.title, back: stack.length > 0 }, prev.focus);
+  }
+
+  render({ items, title });
   container.append(menu);
 
   const r = at ? { left: at.x, right: at.x, top: at.y, bottom: at.y } : anchor.getBoundingClientRect();
   const mr = menu.getBoundingClientRect();
   const left = Math.min(Math.max(8, at ? r.left : r.right - mr.width), window.innerWidth - mr.width - 8);
   let top = r.bottom + (at ? 2 : 6);
-  if (top + mr.height > window.innerHeight - 8) top = Math.max(8, r.top - mr.height - 6);
+  const above = top + mr.height > window.innerHeight - 8;
+  if (above) top = Math.max(8, r.top - mr.height - 6);
   menu.style.left = left + 'px';
   menu.style.top = top + 'px';
+  // Grow from the side the trigger is on.
+  menu.style.transformOrigin = `${at ? 'left' : 'right'} ${above ? 'bottom' : 'top'}`;
+  menu.classList.toggle('above', above);
 
   const onDoc = (e) => {
     if (!menu.contains(e.target) && !anchor.contains(e.target)) close();
   };
-  // Keyboard: focus moves into the menu, Up/Down/Home/End move, Escape and Tab close.
+  // Keyboard: focus moves into the menu, Up/Down/Home/End move, Right opens a
+  // submenu, Left/Escape go back, Escape at the top closes, Tab closes.
   const menuItems = () => [...menu.querySelectorAll('.menu-item:not(:disabled), .menu-row button, .menu-row input')];
   const onKey = (e) => {
     const list = menuItems();
     const i = list.indexOf(document.activeElement);
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' || (e.key === 'ArrowLeft' && stack.length)) {
       e.preventDefault();
       e.stopPropagation();
-      close();
-      anchor?.focus?.();
+      if (stack.length) goBack();
+      else if (e.key === 'Escape') {
+        close();
+        anchor?.focus?.();
+      }
+    } else if (e.key === 'ArrowRight' && document.activeElement?.classList.contains('has-sub')) {
+      e.preventDefault();
+      e.stopPropagation();
+      document.activeElement.click();
     } else if (e.key === 'Tab') {
       close();
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -511,7 +641,6 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
   setTimeout(() => document.addEventListener('pointerdown', onDoc, true), 0);
   document.addEventListener('keydown', onKey, true);
   if (anchor && !at) anchor.setAttribute('aria-expanded', 'true');
-  requestAnimationFrame(() => (menu.querySelector('.menu-item.checked:not(:disabled)') || menuItems()[0])?.focus({ preventScroll: true }));
 
   const handle = {
     anchor,
@@ -522,6 +651,7 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
       document.removeEventListener('pointerdown', onDoc, true);
       document.removeEventListener('keydown', onKey, true);
       if (openMenu === handle) openMenu = null;
+      onClose?.();
     },
   };
   function close() {
@@ -536,9 +666,13 @@ export function popupMenu(anchor, items, { title, container = document.body, at 
 // attributes are moved to data-tip on first hover.
 let tipEl = null;
 let tipTimer = 0;
+// Once a tip has shown, moving to the next control shows its tip at once
+// (no delay, no fade), until the pointer rests off the controls for a moment.
+let tipWarmUntil = 0;
 
 function hideTip() {
   clearTimeout(tipTimer);
+  if (tipEl) tipWarmUntil = performance.now() + 600;
   tipEl?.remove();
   tipEl = null;
 }
@@ -557,9 +691,10 @@ export function initTooltips() {
     }
     if (!target.dataset.tip) return;
     hideTip();
+    const warm = performance.now() < tipWarmUntil;
     tipTimer = setTimeout(() => {
       if (!target.isConnected || !target.matches(':hover')) return;
-      tipEl = h('div', { class: 'tooltip', role: 'tooltip' }, target.dataset.tip,
+      tipEl = h('div', { class: warm ? 'tooltip instant' : 'tooltip', role: 'tooltip' }, target.dataset.tip,
         target.dataset.shortcut ? h('kbd', null, target.dataset.shortcut) : null);
       document.body.append(tipEl);
       const r = target.getBoundingClientRect();
@@ -568,11 +703,20 @@ export function initTooltips() {
       if (top + t.height > innerHeight - 4) top = r.top - t.height - 6;
       tipEl.style.top = `${top}px`;
       tipEl.style.left = `${Math.min(Math.max(4, r.left + r.width / 2 - t.width / 2), innerWidth - t.width - 4)}px`;
-    }, 500);
+    }, warm ? 0 : 500);
   });
   document.addEventListener('pointerout', (e) => {
     if (e.target.closest?.('[data-tip]')) hideTip();
   });
-  document.addEventListener('pointerdown', hideTip, true);
-  document.addEventListener('keydown', hideTip, true);
+  const root = document.documentElement;
+  const dismiss = (e) => {
+    hideTip();
+    tipWarmUntil = 0;
+    // Remember how the user is driving the app, so keyboard-opened menus and
+    // pages skip their entrance animation (see base.css).
+    const mode = e.type === 'keydown' ? 'key' : 'pointer';
+    if (root.dataset.input !== mode) root.dataset.input = mode;
+  };
+  document.addEventListener('pointerdown', dismiss, true);
+  document.addEventListener('keydown', dismiss, true);
 }

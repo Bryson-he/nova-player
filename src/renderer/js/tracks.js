@@ -79,6 +79,36 @@ export function describeSub(s) {
   };
 }
 
+// Menus show a readable name (the track's title, or its language) with the
+// technical details on a quieter second line.
+// The stream's language, or '' when it doesn't say (not "No preference").
+const streamLang = (s) => (normLang(s.Language) && !/^(und|unk|mul|zxx)$/i.test(s.Language) ? langName(s.Language) : '');
+
+export function streamName(s) {
+  if (!s) return 'Off';
+  const title = (s.Title || '').trim();
+  const lang = streamLang(s);
+  if (title && !/^(stereo|mono|surround|default|und|unknown)$/i.test(title)) return title;
+  return lang || title || (s.Type === 'Audio' ? 'Audio track' : 'Subtitles');
+}
+
+const CHANNELS = { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' };
+const CODECS = { subrip: 'SRT', ass: 'ASS', ssa: 'SSA', pgssub: 'PGS', dvdsub: 'VobSub', webvtt: 'VTT', eac3: 'E-AC-3', truehd: 'TrueHD', dts: 'DTS', aac: 'AAC', ac3: 'AC-3', flac: 'FLAC', opus: 'Opus', mp3: 'MP3' };
+
+export function streamDetail(s) {
+  if (!s) return '';
+  const bits = [];
+  const lang = streamLang(s);
+  if (lang && streamName(s) !== lang) bits.push(lang);
+  if (s.Type === 'Audio' && s.Channels) bits.push(CHANNELS[s.Channels] || `${s.Channels} channels`);
+  const codec = (s.Codec || '').toLowerCase();
+  if (codec) bits.push(CODECS[codec] || codec.toUpperCase());
+  if (s.IsForced) bits.push('Forced');
+  if (isSdh(s)) bits.push('SDH');
+  if (s.IsExternal) bits.push('Separate file');
+  return bits.join(' · ');
+}
+
 export function streamLabel(s) {
   if (!s) return 'Off';
   if (s.DisplayTitle) {

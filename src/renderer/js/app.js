@@ -18,6 +18,7 @@ import { showShortcuts } from './shortcuts.js';
 const root = document.getElementById('app');
 const SUPPORTED_LIBS = new Set(['movies', 'tvshows', 'boxsets', 'homevideos', 'musicvideos', 'mixed', undefined, null, '']);
 let libraries = [];
+let libsFailed = false;
 
 let signingOut = false;
 api.onUnauthorized = () => {
@@ -176,7 +177,9 @@ function showShell() {
         libraries.length
           ? libraries.map((lib) => link(lib.Name, libIcon(lib.CollectionType), isActive('library', lib.Id),
             () => navigate('library', { id: lib.Id, name: lib.Name, collectionType: lib.CollectionType }, { root: true })))
-          : h('div', { class: 'nav-empty' }, 'Loading…')),
+          : libsFailed
+            ? h('div', { class: 'nav-empty' }, "Couldn't load libraries. ", h('button', { class: 'link-btn', onclick: loadLibraries }, 'Retry'))
+            : h('div', { class: 'nav-empty' }, 'Loading…')),
       h('div', { class: 'nav-spacer' }),
       update,
       h('div', { class: 'nav-group' },
@@ -207,12 +210,20 @@ function showShell() {
   navigate('home', {}, { root: true });
   renderNav();
 
-  api.views()
-    .then((r) => {
-      libraries = (r?.Items || []).filter((v) => SUPPORTED_LIBS.has(v.CollectionType));
-      renderNav();
-    })
-    .catch((err) => toast(`Couldn't load libraries: ${err.message}`, 'error'));
+  function loadLibraries() {
+    libsFailed = false;
+    renderNav();
+    api.views()
+      .then((r) => {
+        libraries = (r?.Items || []).filter((v) => SUPPORTED_LIBS.has(v.CollectionType));
+        renderNav();
+      })
+      .catch(() => {
+        libsFailed = true;
+        renderNav();
+      });
+  }
+  loadLibraries();
 }
 
 let searchInput = null;
