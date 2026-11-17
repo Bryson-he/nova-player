@@ -296,10 +296,17 @@ class Api {
     });
   }
 
-  // Clears the resume point so the item drops off "Continue Watching".
+  // Clears the resume point so the item drops off "Continue watching".
+  /** @param {string} id */
   hideFromResume(id) {
+    return this.setPosition(id, 0);
+  }
+
+  // Sets the resume point (Undo puts a cleared one back).
+  /** @param {string} id @param {number} ticks */
+  setPosition(id, ticks) {
     return this.tryPaths([`/UserItems/${id}/UserData`, `/Users/${this.userId}/Items/${id}/UserData`], {
-      method: 'POST', query: { userId: this.userId }, body: { PlaybackPositionTicks: 0 },
+      method: 'POST', query: { userId: this.userId }, body: { PlaybackPositionTicks: ticks },
     });
   }
 

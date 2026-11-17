@@ -45,8 +45,8 @@
 .seek-segs { position: absolute; inset: 0; }
 .seg { position: absolute; top: 0; bottom: 0; background: rgba(255, 214, 10, 0.5); }
 .seg-outro { background: rgba(160, 200, 255, 0.45); }
-.seek-knob { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--accent); transform: scale(0); transition: transform var(--dur-1); pointer-events: none; }
-.seek:hover .seek-knob, .seek:focus-visible .seek-knob { transform: scale(1); }
+.seek-knob { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--accent); opacity: 0; transform: scale(0.5); transition: transform var(--dur-1) var(--ease), opacity var(--dur-1); pointer-events: none; }
+.seek:hover .seek-knob, .seek:focus-visible .seek-knob { opacity: 1; transform: scale(1); }
 .seek-tip { position: absolute; bottom: 28px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 .seek-thumb { border-radius: var(--r-s); border: 2px solid rgba(255, 255, 255, 0.85); background-color: #000; background-repeat: no-repeat; box-shadow: var(--shadow-2); }
 .seek-time, .seek-chapter { background: rgba(0, 0, 0, 0.85); padding: 2px var(--s-2); border-radius: var(--r-s); font-variant-numeric: tabular-nums; font-size: var(--fs-callout); }
@@ -129,3 +129,8 @@ canvas.JASSUB { z-index: 1; transform-origin: 50% 0; transition: transform var(-
   .upnext img { width: 140px; }
 }
 .upnext .p-subtitle { white-space: normal; }
+
+/* While the Audio and subtitles menu is open, raise subtitles above it so
+   adjusting sync shows the line being synced. */
+.player.tracks-open .sub-layer:not(.top) { bottom: 58%; }
+.player.tracks-open canvas.JASSUB { transform: scale(0.5); }

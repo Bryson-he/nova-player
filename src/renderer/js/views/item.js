@@ -1,6 +1,6 @@
 import { api, TICKS } from '../api.js';
 import {
-  h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select, isNewItem, itemMenu, popupMenu, fadeImg,
+  h, fill, icon, iconBtn, button, spinner, errorBox, row, itemCard, toast, select, isNewItem, itemMenu, popupMenu, fadeImg, setWatched,
   backdropUrl, posterUrl, logoUrl, landscapeUrl, formatRuntime, formatTime, endsAt, epLabel,
 } from '../ui.js';
 import { navigate, scroller, setPageTitle } from '../router.js';
@@ -123,7 +123,7 @@ export function itemView({ id, seasonId }) {
   function stateChips(item) {
     const ud = item.UserData || {};
     return [
-      ud.Played ? h('span', { class: 'chip' }, icon('check'), 'Watched') : null,
+      ud.Played && !ud.PlaybackPositionTicks ? h('span', { class: 'chip' }, icon('check'), 'Watched') : null,
       ud.IsFavorite ? h('span', { class: 'chip' }, icon('heart'), 'Favourite') : null,
     ];
   }
@@ -160,7 +160,7 @@ export function itemView({ id, seasonId }) {
     const renderTracks = () => {
       const audios = audioStreams(ms);
       const subs = subStreams(ms);
-      fill(trackArea, 
+      fill(trackArea,
         sources.length > 1 ? h('label', { class: 'picker' }, h('span', null, 'Version'),
           select(sources.map((s) => [s.Id, s.Name || s.Container]), ms.Id, (v) => {
             ms = sources.find((s) => s.Id === v);
@@ -248,13 +248,31 @@ export function itemView({ id, seasonId }) {
         icon: 'doneAll',
         cls: 'small-btn season-mark',
         onclick: async () => {
+          // Undo restores every episode as it was, not just the season flag.
+          let before = [];
           try {
+            before = (await api.episodes(series.Id, { seasonId: s.Id, Fields: 'UserData' }))
+              .map((ep) => ({ id: ep.Id, played: !!ep.UserData?.Played, pos: ep.UserData?.PlaybackPositionTicks || 0 }));
             await api.setPlayed(s.Id, !played);
-            toast(`${s.Name} marked ${played ? 'unwatched' : 'watched'}`);
-            load(true);
           } catch (err) {
-            toast(err.message, 'error');
+            toast(`Couldn't update the season: ${err.message}`, 'error');
+            return;
           }
+          load(true);
+          toast(`${s.Name}: marked ${played ? 'unwatched' : 'watched'}`, 'info', 8000, {
+            label: 'Undo',
+            onClick: async () => {
+              try {
+                for (const ep of before) {
+                  await api.setPlayed(ep.id, ep.played);
+                  if (ep.pos) await api.setPosition(ep.id, ep.pos);
+                }
+                load(true);
+              } catch (err) {
+                toast(`Couldn't undo: ${err.message}`, 'error');
+              }
+            },
+          });
         },
       });
     };
@@ -280,7 +298,9 @@ export function itemView({ id, seasonId }) {
           pick(seasons[(n + seasons.length) % seasons.length], true);
         },
       }, s.Name, s.UserData?.UnplayedItemCount ? h('span', { class: 'tab-count', 'aria-label': `${s.UserData.UnplayedItemCount} unwatched` }, s.UserData.UnplayedItemCount) : null)));
-      fill(tabs, tabList, seasons.filter((s) => s.Id === selectedSeason).map(seasonBtn));
+      // One season needs a heading, not a one-tab tab list.
+      fill(tabs, seasons.length === 1 ? h('h2', { class: 'season-single' }, seasons[0].Name) : tabList,
+        seasons.filter((s) => s.Id === selectedSeason).map(seasonBtn));
     };
 
     async function loadEpisodes() {
@@ -310,7 +330,7 @@ export function itemView({ id, seasonId }) {
           'Audio & subtitle choices you make in any episode will be remembered for the whole series.'));
         return;
       }
-      fill(box, 
+      fill(box,
         h('span', { class: 'mem-label' }, 'Remembered for this series:'),
         pref.audio ? h('span', { class: 'chip' }, icon('audio'), pref.audio.label || pref.audio.language || 'Audio') : null,
         pref.subtitle ? h('span', { class: 'chip' }, icon('subtitles'), pref.subtitle.off ? 'Subtitles off' : (pref.subtitle.label || pref.subtitle.language)) : null,
@@ -327,12 +347,25 @@ export function itemView({ id, seasonId }) {
     return box;
   }
 
+  // Watched toggle: an empty ring when unwatched, a green tick when watched.
+  // A quiet control, so the page's one Starlight button stays the only accent.
+  function watchedBtn(ep, refresh) {
+    const played = !!ep.UserData?.Played;
+    const btn = iconBtn(played ? 'check' : 'ring', played ? 'Watched · click to mark unwatched' : 'Mark watched', (e) => {
+      e.stopPropagation();
+      setWatched(ep, !played, refresh);
+    }, `watch-toggle${played ? ' on' : ''}`);
+    btn.setAttribute('aria-pressed', String(played));
+    btn.setAttribute('aria-label', `Watched: ${ep.Name}`);
+    return btn;
+  }
+
   function episodeRow(ep, refresh) {
     const ud = ep.UserData || {};
     const pct = ud.PlayedPercentage && !ud.Played ? ud.PlayedPercentage : 0;
     const img = landscapeUrl(ep, 480);
     const aired = ep.PremiereDate ? new Date(ep.PremiereDate).toLocaleDateString() : '';
-    const label = [`Episode ${ep.IndexNumber ?? ''}`, ep.Name, isNewItem(ep) ? 'new' : '', ud.Played ? 'watched' : pct ? `${Math.round(pct)}% played` : ''].filter(Boolean).join(', ');
+    const label = [`Play episode ${ep.IndexNumber ?? ''}`, ep.Name, isNewItem(ep) ? 'new' : '', ud.Played ? 'watched' : pct ? `${Math.round(pct)}% played` : ''].filter(Boolean).join(', ');
     const rowEl = h('li', { class: `episode ${ud.Played ? 'played' : ''}`, tabindex: 0, 'aria-label': label },
       h('div', {
         class: 'ep-thumb',
@@ -353,22 +386,19 @@ export function itemView({ id, seasonId }) {
           .filter(Boolean).join(' · ')),
         ep.Overview ? h('div', { class: 'ep-overview clamp-2' }, ep.Overview) : null),
       h('div', { class: 'ep-actions' },
-        iconBtn('check', ud.Played ? 'Mark unwatched' : 'Mark watched', async (e) => {
+        watchedBtn(ep, refresh),
+        iconBtn('info', 'Details', (e) => {
           e.stopPropagation();
-          try {
-            await api.setPlayed(ep.Id, !ud.Played);
-            refresh();
-          } catch (err) {
-            toast(err.message, 'error');
-          }
-        }, `round small ${ud.Played ? 'on' : ''}`)));
-    rowEl.addEventListener('click', () => navigate('item', { id: ep.Id }));
+          navigate('item', { id: ep.Id });
+        }, 'ep-details')));
+    // A row plays its episode, like its thumbnail; Details is its own button.
+    rowEl.addEventListener('click', () => openPlayer(ep.Id));
     rowEl.addEventListener('contextmenu', (e) => itemMenu(ep, e));
-    // Enter opens the episode, Space plays it, the Menu key opens the menu.
+    // Enter or Space plays, I opens details, the Menu key opens the menu.
     rowEl.addEventListener('keydown', (e) => {
       if (e.target !== rowEl) return;
-      if (e.key === 'Enter') navigate('item', { id: ep.Id });
-      else if (e.key === ' ') {
+      if (e.key.toLowerCase() === 'i') navigate('item', { id: ep.Id });
+      else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         openPlayer(ep.Id);
       } else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {

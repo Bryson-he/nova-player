@@ -5,21 +5,15 @@
 
 /* ---- Home hero: steps through what you're watching */
 .home { padding-top: 0; }
-.home-hero { position: relative; margin: 0 calc(-1 * var(--page-x)) var(--s-5); min-height: 420px; display: flex; align-items: flex-end; overflow: hidden; border-top-left-radius: var(--r-l); }
+.home-hero { position: relative; margin: 0 calc(-1 * var(--page-x)) var(--s-5); min-height: min(420px, 48vh); display: flex; align-items: flex-end; overflow: hidden; border-top-left-radius: var(--r-l); }
 .home-hero-bg { position: absolute; inset: 0; background-size: cover; background-position: center 20%; transition: opacity var(--dur-3); }
 .home-hero-fade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(23, 23, 26, 0.96) 0%, rgba(23, 23, 26, 0.7) 40%, rgba(23, 23, 26, 0.05) 75%), linear-gradient(0deg, var(--surface) 0%, transparent 45%); }
 .home-hero-content { position: relative; padding: var(--s-7) var(--page-x) var(--s-6); max-width: 660px; display: flex; flex-direction: column; gap: var(--s-2); animation: fade-in var(--dur-3); }
 .home-hero-content h1 { font-size: var(--fs-display); line-height: var(--lh-display); }
 .hero-sub { font-size: var(--fs-headline); line-height: var(--lh-headline); color: var(--text); }
-.hero-overview { color: var(--text-2); }
+.hero-overview { color: var(--text-2); max-width: 62ch; }
 .hero-logo { max-width: 380px; max-height: 140px; object-fit: contain; object-position: left bottom; }
 .hero-actions { display: flex; gap: var(--s-2); align-items: center; margin-top: var(--s-2); flex-wrap: wrap; }
-.hero-dots { position: absolute; right: var(--page-x); bottom: var(--s-6); display: flex; gap: var(--s-1); }
-.hero-dot { width: 32px; height: 32px; border: 0; padding: 0; background: none; cursor: pointer; display: grid; place-items: center; border-radius: var(--r-full); }
-.hero-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: rgba(242, 242, 243, 0.35); transition: background var(--dur-1), transform var(--dur-1); }
-.hero-dot:hover::before { background: var(--text-2); }
-.hero-dot[aria-current='true']::before { background: var(--accent); transform: scale(1.25); }
-
 /* ---- Library */
 .lib-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap; position: sticky; top: calc(-1 * var(--s-5)); z-index: 5; margin: calc(-1 * var(--s-5)) calc(-1 * var(--page-x)) var(--s-5); padding: var(--s-5) var(--page-x) var(--s-3); background: var(--surface); border-bottom: 1px solid transparent; }
 .lib-title { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
@@ -39,11 +33,7 @@
 .lib-status:empty { display: none; }
 
 /* ---- Search */
-.search-bar { display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-4); height: 52px; border-radius: var(--r-l); background: var(--surface-2); border: 1px solid var(--surface-3); margin-bottom: var(--s-5); }
-.search-bar:focus-within { border-color: var(--accent); }
-.search-bar .icon { color: var(--text-2); }
-.search-input { border: 0; background: none; height: 100%; font-size: var(--fs-headline); padding: 0; }
-.search-input:focus-visible { box-shadow: none; }
+.search-title { font-size: var(--fs-title1); line-height: var(--lh-title1); margin-bottom: var(--s-5); }
 .search-group { margin-bottom: var(--s-6); }
 .search-group h2 { font-size: var(--fs-title2); line-height: var(--lh-title2); margin-bottom: var(--s-3); }
 .search-recent { display: flex; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
@@ -67,7 +57,7 @@
 .star .icon { width: 16px; height: 16px; color: var(--rating); }
 .genres { display: flex; gap: var(--s-1); flex-wrap: wrap; }
 .tagline { font-style: italic; color: var(--text-2); }
-.overview { color: var(--text); max-width: 760px; line-height: 22px; user-select: text; }
+.overview { color: var(--text); max-width: 68ch; line-height: 22px; user-select: text; }
 .series-link { background: none; border: 0; padding: 0; color: var(--text); font-size: var(--fs-headline); font-weight: 600; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--text-3); text-underline-offset: 3px; }
 .series-link:hover { text-decoration-color: var(--text); }
 
@@ -102,7 +92,7 @@
 .ep-title { font-weight: 600; font-size: var(--fs-headline); line-height: var(--lh-headline); }
 .ep-num { color: var(--text-2); margin-right: 6px; }
 .ep-meta { color: var(--text-2); font-size: var(--fs-caption); line-height: var(--lh-caption); }
-.ep-overview { color: var(--text-2); font-size: var(--fs-callout); line-height: var(--lh-callout); }
+.ep-overview { color: var(--text-2); font-size: var(--fs-callout); line-height: var(--lh-callout); max-width: 80ch; }
 .ep-actions { display: flex; gap: var(--s-1); }
 .episode.played .ep-title { color: var(--text-2); }
 .collection-grid h2 { font-size: var(--fs-title2); line-height: var(--lh-title2); margin-bottom: var(--s-3); }
@@ -115,3 +105,12 @@
 /* ---- Person */
 .person-head { display: flex; gap: var(--s-5); align-items: center; padding: var(--s-5) 0 var(--s-6); }
 .person-photo { width: 160px; height: 160px; border-radius: 50%; object-fit: cover; flex: none; background: var(--surface-2); font-size: 48px; }
+
+/* Episode watched toggle: quiet, never the accent. */
+.watch-toggle { color: var(--text-3); }
+.watch-toggle:hover { color: var(--text); }
+.watch-toggle.on { color: var(--success); }
+.ep-details { color: var(--text-2); }
+.ep-actions { opacity: 0.85; }
+.episode:hover .ep-actions, .episode:focus-within .ep-actions { opacity: 1; }
+.season-single { font-size: var(--fs-title2); line-height: var(--lh-title2); }

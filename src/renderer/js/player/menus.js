@@ -3,8 +3,17 @@
 
 import { store } from '../store.js';
 import { h, popupMenu, toast, formatTime } from '../ui.js';
-import { audioStreams, subStreams, streamLabel, rememberTrack, isTextSub, isAssSub } from '../tracks.js';
+import { audioStreams, subStreams, streamLabel, streamName, streamDetail, rememberTrack, isTextSub, isAssSub } from '../tracks.js';
 import { SPEEDS, QUALITIES, BOOSTS } from './constants.js';
+
+const FIT_LABELS = { fit: 'Fit', crop: 'Auto crop', fill: 'Fill', stretch: 'Stretch', zoom: 'Zoom' };
+const FIT_HINTS = {
+  fit: 'Whole picture, with bars if shapes differ',
+  crop: 'Removes black bars that are part of the video',
+  fill: 'Fills the window, trimming the edges',
+  stretch: 'Fills the window, distorting the picture',
+  zoom: 'A little closer than Fit',
+};
 
 export class MenuMixin {
   // ---------------------------------------------------------------- track switching
@@ -26,18 +35,19 @@ export class MenuMixin {
       delayVal,
       h('button', { class: 'mini-btn', title: 'Show later (X)', 'aria-label': 'Show subtitles later', onclick: bump(0.1) }, '+'),
       h('button', { class: 'mini-btn', onclick: bump(0) }, 'Reset'));
+    // Lift the subtitles above the menu while it's open, so syncing shows the line.
+    this.el.classList.add('tracks-open');
     popupMenu(anchor, [
-      { header: 'Audio' },
+      { header: 'Audio  (A)' },
       ...(audios.length ? audios.map((s) => ({
-        label: streamLabel(s), checked: s.Index === this.audioIndex, key: 'A', onClick: () => this.setAudio(s.Index),
+        label: streamName(s), sub: streamDetail(s), checked: s.Index === this.audioIndex, onClick: () => this.setAudio(s.Index),
       })) : [{ label: 'No audio tracks', disabled: true }]),
       { divider: true },
-      { header: 'Subtitles' },
+      { header: 'Subtitles  (S)' },
       { label: 'Off', checked: this.subIndex === -1, onClick: () => this.setSubtitle(-1) },
       ...subs.map((s) => ({
-        label: streamLabel(s),
-        sub: !isTextSub(s) ? 'Image subtitle · the server burns it in'
-          : isAssSub(s) && store.setting('styledSubs') ? 'Styled: fonts and positions kept' : '',
+        label: streamName(s),
+        sub: [streamDetail(s), !isTextSub(s) ? 'burned in by the server' : isAssSub(s) && store.setting('styledSubs') ? 'styled' : ''].filter(Boolean).join(' · '),
         checked: s.Index === this.subIndex,
         onClick: () => this.setSubtitle(s.Index),
       })),
@@ -47,13 +57,14 @@ export class MenuMixin {
         { header: 'Second subtitle (top of the picture)' },
         { label: 'Off', checked: this.sub2Index === -1, onClick: () => this.setSecondarySubtitle(-1) },
         ...textSubs.map((s) => ({
-          label: streamLabel(s),
+          label: streamName(s),
+          sub: streamDetail(s),
           checked: s.Index === this.sub2Index,
           disabled: s.Index === this.subIndex,
           onClick: () => this.setSecondarySubtitle(s.Index),
         })),
       ] : []),
-    ]);
+    ], { title: 'Audio and subtitles', onClose: () => this.el.classList.remove('tracks-open') });
   }
 
   setAudio(index) {
@@ -124,74 +135,104 @@ export class MenuMixin {
     this.fit = fit;
     if (fit === 'crop') this.startCrop();
     else this.stopCrop();
-    if (announce) this.osd(`Video: ${{ fit: 'Fit', crop: 'Auto crop', fill: 'Fill', stretch: 'Stretch', zoom: 'Zoom' }[fit]}`);
+    if (announce) this.osd(`Picture: ${FIT_LABELS[fit]}`);
   }
 
   cycleFit() {
     const modes = ['fit', 'crop', 'fill', 'stretch', 'zoom'];
     const next = modes[(modes.indexOf(this.fit || 'fit') + 1) % modes.length];
-    this.setFit(next);
-    store.setSetting('videoFit', next);
+    this.setFit(next); // this video only; the menu's "Use for all videos" saves it
   }
 
   // ---------------------------------------------------------------- speed / quality / info
 
+  // Grouped rows: each shows its current value and opens its own list, so
+  // the most used (speed, quality) are first and nothing needs scrolling.
   settingsMenu(anchor) {
     const rate = this.video.playbackRate;
     const boost = store.setting('volumeBoost');
     const cur = this.currentChapterIndex();
+    const quality = QUALITIES.find(([b]) => b === this.bitrateOverride)?.[1] || 'Auto';
+    const sleep = this.sleepAtEnd ? 'End of episode'
+      : this.sleepUntil ? `At ${new Date(this.sleepUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Off';
     popupMenu(anchor, [
-      { label: 'Take screenshot', sub: 'Ctrl+S · saved to Pictures\\Nova Player', onClick: () => this.screenshot() },
-      { label: this.mini ? 'Exit mini player' : 'Mini player (always on top)', sub: 'T', onClick: () => this.setMini(!this.mini) },
-      { header: 'Sound' },
       {
-        label: 'Night mode',
-        sub: 'Quieter explosions, clearer dialogue',
-        checked: store.setting('nightMode'),
+        label: 'Speed', value: rate === 1 ? 'Normal' : `${rate}×`, submenu: () => SPEEDS.map((sp) => ({
+          label: sp === 1 ? 'Normal' : `${sp}×`, checked: Math.abs(rate - sp) < 0.01, onClick: () => this.setSpeed(sp),
+        })),
+      },
+      {
+        label: 'Quality', value: quality.replace(' (from settings)', ''), submenu: () => QUALITIES.map(([b, label]) => ({
+          label,
+          checked: this.bitrateOverride === b,
+          onClick: () => {
+            if (this.bitrateOverride === b) return;
+            this.bitrateOverride = b;
+            this.reload({ message: 'Changing quality…' });
+          },
+        })),
+      },
+      { label: 'Picture', value: FIT_LABELS[this.fit || 'fit'], key: 'V', submenu: () => this.pictureItems() },
+      {
+        label: 'Sound', value: [store.setting('nightMode') ? 'Night mode' : '', boost !== 1 ? `${Math.round(boost * 100)}%` : ''].filter(Boolean).join(' · ') || 'Normal',
+        submenu: () => [
+          {
+            label: 'Night mode',
+            sub: 'Quieter explosions, clearer dialogue',
+            checked: store.setting('nightMode'),
+            onClick: () => {
+              store.setSetting('nightMode', !store.setting('nightMode'));
+              this.applyAudio();
+              this.osd(`Night mode ${store.setting('nightMode') ? 'on' : 'off'}`);
+            },
+          },
+          { header: 'Volume boost' },
+          ...BOOSTS.map(([b, label]) => ({
+            label,
+            checked: boost === b,
+            onClick: () => {
+              store.setSetting('volumeBoost', b);
+              this.applyAudio();
+              this.osd(`Volume boost ${Math.round(b * 100)}%`);
+            },
+          })),
+        ],
+      },
+      {
+        label: 'Sleep timer', value: sleep, submenu: () => [[0, 'Off'], [15, '15 minutes'], [30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], ['end', 'End of this episode']].map(([m, label]) => ({
+          label,
+          checked: m === 'end' ? !!this.sleepAtEnd : m === 0 ? !this.sleepUntil && !this.sleepAtEnd : false,
+          onClick: () => this.setSleep(m),
+        })),
+      },
+      this.chapters.length ? {
+        label: 'Chapters', value: this.chapters[cur]?.name || '', key: 'PgUp PgDn', submenu: () => this.chapters.map((c, i) => ({
+          label: c.name, sub: formatTime(c.start), checked: i === cur, onClick: () => this.seekTo(c.start),
+        })),
+      } : null,
+      { divider: true },
+      { label: 'Take screenshot', sub: 'Saved to Pictures\\Nova Player', key: 'Ctrl S', onClick: () => this.screenshot() },
+    ].filter(Boolean), { title: 'Playback' });
+  }
+
+  // Video fit for this video; "Use for all videos" makes it the default.
+  pictureItems() {
+    const current = this.fit || 'fit';
+    return [
+      ...Object.entries(FIT_LABELS).map(([mode, label]) => ({
+        label, sub: FIT_HINTS[mode], checked: current === mode, onClick: () => this.setFit(mode),
+      })),
+      { divider: true },
+      {
+        label: 'Use for all videos',
+        sub: store.setting('videoFit') === current ? 'This is your default' : `Default now: ${FIT_LABELS[store.setting('videoFit')] || 'Fit'}`,
+        disabled: store.setting('videoFit') === current,
         onClick: () => {
-          store.setSetting('nightMode', !store.setting('nightMode'));
-          this.applyAudio();
-          this.osd(`Night mode ${store.setting('nightMode') ? 'on' : 'off'}`);
+          store.setSetting('videoFit', current);
+          this.osd(`${FIT_LABELS[current]} is now the default`);
         },
       },
-      ...BOOSTS.map(([b, label]) => ({
-        label: `Volume boost ${label}`,
-        checked: boost === b,
-        onClick: () => {
-          store.setSetting('volumeBoost', b);
-          this.applyAudio();
-          this.osd(`Volume boost ${Math.round(b * 100)}%`);
-        },
-      })),
-      ...(this.chapters.length ? [
-        { header: 'Chapters  (PgUp / PgDn)' },
-        ...this.chapters.map((c, i) => ({
-          label: c.name,
-          sub: formatTime(c.start),
-          checked: i === cur,
-          onClick: () => this.seekTo(c.start),
-        })),
-      ] : []),
-      { header: 'Sleep timer' },
-      ...[[0, 'Off'], [15, '15 minutes'], [30, '30 minutes'], [45, '45 minutes'], [60, '1 hour'], ['end', 'End of this episode']].map(([m, label]) => ({
-        label,
-        checked: m === 'end' ? !!this.sleepAtEnd : m === 0 ? !this.sleepUntil && !this.sleepAtEnd : false,
-        onClick: () => this.setSleep(m),
-      })),
-      ...(this.sleepUntil ? [{ label: `Pausing at ${new Date(this.sleepUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`, disabled: true }] : []),
-      { header: 'Playback speed' },
-      ...SPEEDS.map((s) => ({ label: s === 1 ? 'Normal' : `${s}×`, checked: Math.abs(rate - s) < 0.01, onClick: () => this.setSpeed(s) })),
-      { header: 'Quality' },
-      ...QUALITIES.map(([b, label]) => ({
-        label,
-        checked: this.bitrateOverride === b,
-        onClick: () => {
-          if (this.bitrateOverride === b) return;
-          this.bitrateOverride = b;
-          this.reload({ message: 'Changing quality…' });
-        },
-      })),
-    ]);
+    ];
   }
 
   setSpeed(s) {

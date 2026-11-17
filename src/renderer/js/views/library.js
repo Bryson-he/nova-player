@@ -64,7 +64,7 @@ export function libraryView({ id, name, collectionType }) {
 
   // One Sort menu: the field and the direction together.
   const sortBtn = button('', {
-    icon: 'tune', cls: 'small-btn btn-quiet', onclick: () => popupMenu(sortBtn, [
+    icon: 'sort', cls: 'small-btn btn-quiet', onclick: () => popupMenu(sortBtn, [
       { header: 'Sort by' },
       ...cfg.sorts.map(([v, label]) => ({ label, checked: v === state.sortBy, onClick: () => { state.sortBy = v; changed(); } })),
       { divider: true },
@@ -107,18 +107,22 @@ export function libraryView({ id, name, collectionType }) {
     }, label)));
 
   // A–Z jump bar. Only meaningful (and shown) when sorting by name.
-  const letters = h('div', { class: 'az-bar', role: 'group', 'aria-label': 'Jump to letter' }, ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((l) => h('button', {
-    class: l === '#' ? 'active' : '',
-    title: l === '#' ? 'Show all' : `Jump to ${l}`,
-    'aria-label': l === '#' ? 'Show all' : `Starts with ${l}`,
+  const letters = h('div', { class: 'az-bar', role: 'group', 'aria-label': 'Jump to letter' }, ['All', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((l) => h('button', {
+    class: l === 'All' ? 'active' : '',
+    'aria-pressed': String(l === 'All'),
+    'aria-label': l === 'All' ? 'All letters' : `Starts with ${l}`,
     onclick: () => {
-      setLetter(l === '#' ? '' : l);
+      setLetter(l === 'All' ? '' : l);
       changed();
     },
   }, l)));
   function setLetter(l) {
     letter = l;
-    for (const b of letters.children) b.classList.toggle('active', b.textContent === (l || '#'));
+    for (const b of letters.children) {
+      const on = b.textContent === (l || 'All');
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
   }
   const syncLetters = () => {
     letters.classList.toggle('hidden', state.sortBy !== 'SortName');
@@ -133,7 +137,7 @@ export function libraryView({ id, name, collectionType }) {
       state.filter !== 'all' ? chip(FILTERS.find(([v]) => v === state.filter)?.[1], () => { state.filter = 'all'; }) : null,
       state.genre ? chip(genres.find((g) => g.Id === state.genre)?.Name || 'Genre', () => { state.genre = ''; }) : null,
       letter ? chip(`Starts with ${letter}`, () => setLetter('')) : null);
-    fill(sortBtn, icon('tune'), h('span', null, `${cfg.sorts.find(([v]) => v === state.sortBy)?.[1] || 'Name'} ${state.sortOrder === 'Ascending' ? '↑' : '↓'}`));
+    fill(sortBtn, icon('sort'), h('span', null, `${cfg.sorts.find(([v]) => v === state.sortBy)?.[1] || 'Name'} ${state.sortOrder === 'Ascending' ? '↑' : '↓'}`));
     sortBtn.setAttribute('aria-label', `Sort: ${cfg.sorts.find(([v]) => v === state.sortBy)?.[1]}, ${state.sortOrder.toLowerCase()}`);
   }
 

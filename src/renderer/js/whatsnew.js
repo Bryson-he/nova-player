@@ -5,6 +5,15 @@ import { h, button, novaMark } from './ui.js';
 import { trapFocus } from './dialog.js';
 
 export const NOTES = {
+  '2.1.0': [
+    'Undo after marking something watched, unwatched or removing it from Continue watching. Marking a whole season can be undone too, and every episode goes back exactly as it was.',
+    'Home leads with the one thing you were last watching; the rest sit in the row below.',
+    'Clicking an episode plays it. Each episode has a clear watched toggle and a Details button.',
+    'Playback settings are grouped into Speed, Quality, Picture, Sound and Sleep timer. Picture holds every fit mode, Auto crop included, and can make one the default for all videos.',
+    'Opening Audio and subtitles lifts the subtitles above the menu so you can see the change as you pick.',
+    'Track names are plainer: the track’s name or language first, the technical details underneath.',
+    'Smaller things: arrow keys move between cards, Delete removes from Continue watching, tooltips appear straight away once one is showing, and menus opened from the keyboard appear without a fade.',
+  ],
   '2.0.1': [
     'Styled anime subtitles work again. Since 1.4.0 they quietly fell back to plain text, so signs, fonts and positioning were lost.',
     'Subtitles can use the fonts installed on your PC again when a font isn’t included with the video.',

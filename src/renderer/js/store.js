@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS = {
   reduceTransparency: false, // solid sidebar instead of Mica, no blur over video
   motion: 'system', // system | reduce | full
   zoom: 1,
-  videoFit: 'fit', // fit | fill | stretch | zoom
+  videoFit: 'fit', // fit | crop | fill | stretch | zoom
   subFont: '', // '' = Nova's font
   subEdge: 'outline', // outline | shadow | raised | none
   betaUpdates: false,
